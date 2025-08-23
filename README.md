@@ -4,6 +4,11 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
 
 ## Get started
 
+{{{
+   In addition to Expo, app uses express as a backend, housed in phasex/backend/src/index.js. To start
+   the server, navigate to phasex/backend/src in terminal and run "node index.js"
+}}}
+
 1. Install dependencies
 
    ```bash

@@ -1,14 +1,13 @@
-import React from 'react';
 import { Stack } from 'expo-router';
 
-export default function GymLayout() {
+export default function TrainingLoadLayout() {
   return (
     <Stack>
       <Stack.Screen
         name="index"
         options={{
-          title: 'Gym',
-          //headerShown: true,
+          title: 'Training Load',
+          headerShown: true,
         }}
       />
     </Stack>

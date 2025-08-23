@@ -1,9 +1,9 @@
-import React from 'react';
 import { Stack } from 'expo-router';
+import React from 'react';
 
 export default function Layout() {
   return (
-    <Stack>
+    <Stack screenOptions={{ headerBackButtonDisplayMode: "minimal", headerTitle: "" }}>
       <Stack.Screen 
         name="index" 
         options={{ 
