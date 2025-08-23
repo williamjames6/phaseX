@@ -1,6 +1,13 @@
 import 'react-native-url-polyfill/auto';
 import { createClient } from '@supabase/supabase-js'
+import Constants from 'expo-constants';
 
-const supabaseUrl = 'https://cplcgjvrojkzhxkbqpwa.supabase.co'
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNwbGNnanZyb2premh4a2JxcHdhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg4MjY5MjYsImV4cCI6MjA2NDQwMjkyNn0.WtPcIwyjFcEXJJg-l345QsTN92jaOo0SdScLsZKVWcA'
+// In Expo, we can access EXPO_PUBLIC_* variables directly
+const supabaseUrl = Constants.expoConfig?.extra?.supabaseUrl;
+const supabaseKey = Constants.expoConfig?.extra?.supabaseKey;
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Missing Supabase environment variables');
+}
+
 export const supabase = createClient(supabaseUrl, supabaseKey) 
