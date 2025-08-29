@@ -1,13 +1,16 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import 'react-native-get-random-values';
+import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '../../../lib/supabase';
 
 interface Action {
   id: number;
   timestamp: string;
   description: string;
-  isSubmitted?: boolean; // Add flag to track submission status
+  dbId: string; // Store the actual database UUID for submitted actions
+  sketch_id: string; // Store sketch ID that needs to be linked when action is submitted
 }
 
 export default function JournalEntryIndex() {
@@ -24,7 +27,7 @@ export default function JournalEntryIndex() {
     try {
       const { data, error } = await supabase
         .from('Actions')
-        .select('id, time_stamp, description')
+        .select('id, time_stamp, description, sketch_id')
         .eq('session_id', sessionId)
         .order('id', { ascending: true });
 
@@ -38,7 +41,8 @@ export default function JournalEntryIndex() {
         id: -(index + 1), // Use negative IDs to avoid conflicts with new actions
         timestamp: dbAction.time_stamp,
         description: dbAction.description,
-        isSubmitted: true // Mark as already submitted
+        dbId: dbAction.id, // Store the actual database ID
+        sketch_id: dbAction.sketch_id 
       }));
 
       setActions(existingActions);
@@ -59,8 +63,10 @@ export default function JournalEntryIndex() {
       id: nextId,
       timestamp: '',
       description: '',
-      isSubmitted: false
+      dbId: uuidv4(),
+      sketch_id: uuidv4()
     };
+    console.log(newAction);
     setActions([...actions, newAction]);
     setNextId(nextId + 1);
   };
@@ -71,21 +77,25 @@ export default function JournalEntryIndex() {
       return;
     }
 
-    if (!action.timestamp.trim() || !action.description.trim()) {
-      Alert.alert('Error', 'Please fill in both time and description');
-      return;
-    }
+    // if (!action.timestamp.trim() || !action.description.trim()) {
+    //   Alert.alert('Error', 'Please fill in both time and description');
+    //   return;
+    // }
 
     try {
       const { data, error } = await supabase
         .from('Actions')
-        .insert([
+        .upsert([
           {
+            id: action.dbId,
             session_id: sessionId,
             time_stamp: action.timestamp,
-            description: action.description
+            description: action.description,
+            sketch_id: action.sketch_id
           }
-        ])
+          ],
+          {onConflict: 'id'}
+        )
         .select();
 
       if (error) {
@@ -94,14 +104,51 @@ export default function JournalEntryIndex() {
         return;
       }
       
+      action.sketch_id=data[0].sketch_id;
+      
+      //const actionDbId = data[0].id;
+      
+      // If there's a pending sketch, link it to this action
+      // if (action.pendingSketchId) {
+      //   try {
+      //     const { error: sketchLinkError } = await supabase
+      //       .from('Actions')
+      //       .update({
+      //         sketch_id: action.pendingSketchId
+      //       })
+      //       .eq('id', actionDbId);
+
+      //     if (sketchLinkError) {
+      //       console.error('Error linking sketch to action:', sketchLinkError);
+      //       // Don't fail the action submission, just log the error
+      //     } else {
+      //       console.log('Sketch linked to action successfully');
+      //     }
+      //   } catch (sketchError) {
+      //     console.error('Error linking sketch:', sketchError);
+      //   }
+      // }
+      
       // Mark the action as submitted instead of removing it
-      setActions(actions.map(a => 
-        a.id === action.id ? { ...a, isSubmitted: true } : a
-      ));
+    //   setActions(actions.map(a => 
+    //     a.id === action.id ? { ...a, isSubmitted: true, dbId: actionDbId } : a
+    //   ));
     } catch (error) {
       console.error('Error submitting action:', error);
       Alert.alert('Error', 'Failed to submit action');
     }
+  };
+
+  const handleSketchAction = (action: Action) => {
+    // Navigate to sketchpad for this action
+    router.push({
+      pathname: '/journal/journalEntry/sketchpad/new',
+      params: {
+        actionId: action.id.toString(), // Use local ID for navigation
+        sessionId: sessionId as string,
+        sketchId: action.sketch_id.toString()
+      }
+    });
   };
 
   // Auto-scroll to bottom when new action is added
@@ -201,7 +248,7 @@ export default function JournalEntryIndex() {
                 value={action.timestamp}
                 onChangeText={(value) => updateAction(action.id, 'timestamp', value)}
                 placeholderTextColor="#999"
-                editable={!action.isSubmitted}
+                onBlur={() => handleSubmitAction(action)}
               />
               <TextInput
                 style={styles.descriptionInput}
@@ -210,17 +257,26 @@ export default function JournalEntryIndex() {
                 onChangeText={(value) => updateAction(action.id, 'description', value)}
                 placeholderTextColor="#999"
                 multiline
-                editable={!action.isSubmitted}
+                onBlur={() => handleSubmitAction(action)}
               />
-            </View>
-            {!action.isSubmitted && (
               <TouchableOpacity 
-                style={styles.submitButton}
-                onPress={() => handleSubmitAction(action)}
+                style={styles.sketchButton}
+                onPress={() => handleSketchAction(action)}
               >
-                <Text style={styles.submitButtonText}>Save</Text>
+                <Image
+                  source={require('../../../assets/images/onwards.png')}
+                  style={styles.sketchButtonIcon}
+                />
               </TouchableOpacity>
-            )}
+
+              {/* <TouchableOpacity 
+                  style={styles.submitButton}
+                  onPress={() => handleSubmitAction(action)}
+                >
+                  <Text style={styles.submitButtonText}>Save</Text>
+              </TouchableOpacity> */}
+
+            </View>
           </View>
         ))}
       </ScrollView>
@@ -259,7 +315,7 @@ const styles = StyleSheet.create({
   inputsRow: {
     flexDirection: 'row',
     width: '100%',
-    gap: 15,
+    gap: 5,
   },
   timestampInput: {
     flex: 1,
@@ -283,14 +339,14 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   submitButton: {
-    width: 120,
-    height: 45,
+    width: 40,
+    height: 40,
     borderRadius: 8,
     backgroundColor: '#4caf50',
     justifyContent: 'center',
     alignItems: 'center',
     alignSelf: 'flex-end',
-    marginTop: 15,
+    // marginTop: 15,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -305,6 +361,35 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 15,
+    marginTop: 15,
+  },
+  sketchButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: '#2196f3',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  sketchButtonIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+  },
+
+
   addButton: {
     position: 'absolute',
     bottom: 20,

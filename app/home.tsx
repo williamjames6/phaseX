@@ -94,7 +94,7 @@ export default function HomeScreen() {
 
     } catch (error) {
       console.error("Query failed: ", error);
-      setChatHistory(prev => [...prev, `Error: ${error.message}`]);
+      setChatHistory(prev => [...prev, `Error: ${error}`]);
     }
   };
 
