@@ -1,6 +1,7 @@
+import { useFocusEffect } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useState } from 'react';
-import { Dimensions, GestureResponderEvent, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { Dimensions, GestureResponderEvent, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { supabase } from '../../../../lib/supabase';
 
@@ -8,20 +9,67 @@ const { width, height } = Dimensions.get('window');
 
 interface Sketch {
   id: string;
-  title: string;
-  description: string;
   paths: string[];
-  created_at: string;
   user_id: string;
 }
 
 export default function NewSketchScreen() {
   const params = useLocalSearchParams();
-  const [title, setTitle] = useState(params.title as string || '');
-  const [description, setDescription] = useState(params.description as string || '');
-  const [paths, setPaths] = useState<string[]>(params.paths ? JSON.parse(params.paths as string) : []);
+  const [paths, setPaths] = useState<string[]>([]);
   const [currentPath, setCurrentPath] = useState('');
-  const [isEditing] = useState(!!params.sketchId);
+  const actionId = params.actionId as string;
+  const sessionId = params.sessionId as string;
+
+
+  useFocusEffect(
+    useCallback( () =>
+      {
+        console.log(new Date());
+        console.log(params.sketchId);
+        const handleRender = async () => {
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+              alert('You must be logged in to save sketches');
+              return;
+            }
+            const { data: sketchData, error: sketchError } = await supabase
+              .from('TacticalSketches')
+              .select('paths')
+              .eq('id', params.sketchId)
+              .maybeSingle();
+
+            if (sketchError) {
+              console.log(sketchData);
+              throw sketchError;
+            }
+            if (sketchData) {
+              setPaths(sketchData.paths);
+            }
+          }
+          catch (error: unknown) {
+            console.error('Error in handleSave:', error);
+            if (error instanceof Error) {
+              alert('Error saving sketch: ' + error.message);
+            } else {
+              alert('An unknown error occurred while saving the sketch');
+            }
+          }
+        };
+        console.log("BINGBING");
+
+        handleRender();
+
+        return () => {
+          // Do something when the screen is unfocused
+          // Useful for cleanup functions
+        };
+      }, [])
+  );
+
+  // Debug: Log the received parameters
+  //console.log('Sketchpad received params:', { actionId, sessionId, allParams: params });
+
 
   const handleTouchStart = (event: GestureResponderEvent) => {
     const { locationX, locationY } = event.nativeEvent;
@@ -41,8 +89,13 @@ export default function NewSketchScreen() {
   };
 
   const handleSave = async () => {
-    if (!title.trim()) {
-      alert('Please enter a title');
+    if (!actionId || !sessionId) {
+      alert('Missing action or session information');
+      return;
+    }
+
+    if (paths.length === 0) {
+      alert('Please draw something before saving');
       return;
     }
 
@@ -53,45 +106,36 @@ export default function NewSketchScreen() {
         alert('You must be logged in to save sketches');
         return;
       }
-
-      if (isEditing) {
-        const { error } = await supabase
-          .from('TacticalSketches')
-          .update({
-            title: title,
-            description: description,
+      // 1. Create new row in TacticalSketches table
+      const { data: sketchData, error: sketchError } = await supabase
+        .from('TacticalSketches')
+        .upsert([
+          {
+            user_id: user.id,
             paths: paths,
-          })
-          .eq('id', params.sketchId);
+            id: params.sketchId
+          }
+          ],
+          {onConflict: "id"}
+        )
+        .select()
+        .single();
 
-        if (error) throw error;
-        alert('Sketch updated successfully!');
-      } else {
-        const { error } = await supabase
-          .from('TacticalSketches')
-          .insert([
-            {
-              title: title,
-              description: description,
-              paths: paths,
-              created_at: new Date().toISOString(),
-              user_id: user.id
-            }
-          ]);
+      if (sketchError) throw sketchError;
+      console.log('Sketch created successfully:', sketchData.id);
 
-        if (error) throw error;
-        alert('Sketch saved successfully!');
-      }
-
-      // Navigate back to index and refresh
-      router.replace({
-        pathname: '/journal/sketchpad',
-        params: { refresh: Date.now().toString() }
-      });
+      alert('Sketch saved successfully!');
+      
+      // Navigate back to the journal entry with the sketch ID
+      router.back();
+      // Note: The sketch ID will be stored in the action's pendingSketchId field
+      // when the user returns to the journal entry
     } catch (error: unknown) {
       console.error('Error in handleSave:', error);
       if (error instanceof Error) {
         alert('Error saving sketch: ' + error.message);
+      } else if (typeof(error)=="object" && error) {
+        alert("Did you enter a time stamp or description? No? You dumb slut. Do that first before saving a sketch.");
       } else {
         alert('An unknown error occurred while saving the sketch');
       }
@@ -100,23 +144,9 @@ export default function NewSketchScreen() {
 
   return (
     <View style={styles.container}>
-      <TextInput
-        style={styles.titleInput}
-        placeholder="Enter sketch title"
-        value={title}
-        onChangeText={setTitle}
-      />
-      <TextInput
-        style={[styles.titleInput, styles.descriptionInput]}
-        placeholder="Enter sketch description"
-        value={description}
-        onChangeText={setDescription}
-        multiline
-        numberOfLines={3}
-      />
       <View style={styles.canvas}>
         <Svg
-          height={height * 0.4}
+          height={height * 0.6}
           width={width}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
@@ -145,9 +175,7 @@ export default function NewSketchScreen() {
         style={styles.saveButton} 
         onPress={handleSave}
       >
-        <Text style={styles.saveButtonText}>
-          {isEditing ? 'Update Sketch' : 'Save Sketch'}
-        </Text>
+        <Text style={styles.saveButtonText}>Save Sketch</Text>
       </TouchableOpacity>
     </View>
   );
@@ -158,16 +186,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff3e0',
     padding: 20,
-  },
-  titleInput: {
-    backgroundColor: 'white',
-    padding: 10,
-    borderRadius: 5,
-    marginBottom: 10,
-  },
-  descriptionInput: {
-    height: 80,
-    textAlignVertical: 'top',
   },
   canvas: {
     backgroundColor: 'white',

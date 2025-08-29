@@ -1,11 +1,33 @@
-import React, { useState } from 'react';
-import { View, TextInput, Button, StyleSheet, Alert, Text, TouchableOpacity } from 'react-native';
-import { supabase } from '../lib/supabase';
+import * as LocalAuthentication from 'expo-local-authentication';
 import { router } from 'expo-router';
+import React, { useState } from 'react';
+import { Alert, Button, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 export default function LoginScreen() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [authenticated, setAuthenticated] = useState(false);
+
+  const handleFaceID = async () => {
+    try {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: "Login with Face ID",
+        fallbackLabel: "Enter Passcode", // iOS fallback
+        disableDeviceFallback: false,
+      });
+
+      if (result.success) {
+        console.log("RESULT: ", result);
+        router.replace('/home');
+      } else {
+        console.log("Authentication failed:", result.error);
+      }
+
+    } catch (error) {
+      Alert.alert('Error', error.message);
+    }
+  };
 
   const handleLogin = async () => {
     try {
@@ -25,6 +47,7 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
+      <Button title="FaceID" onPress={handleFaceID} />
       <TextInput
         style={styles.input}
         placeholder="Username"
