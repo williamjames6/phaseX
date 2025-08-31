@@ -18,7 +18,6 @@ export default function LoginScreen() {
       });
 
       if (result.success) {
-        console.log("RESULT: ", result);
         router.replace('/home');
       } else {
         console.log("Authentication failed:", result.error);
