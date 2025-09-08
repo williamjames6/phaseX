@@ -29,7 +29,7 @@ export default function JournalEntryIndex() {
         .from('Actions')
         .select('id, time_stamp, description, sketch_id')
         .eq('session_id', sessionId)
-        .order('id', { ascending: true });
+        .order('time_stamp', { ascending: true });
 
       if (error) {
         console.error('Error loading actions:', error);
@@ -76,12 +76,6 @@ export default function JournalEntryIndex() {
       Alert.alert('Error', 'No session ID found');
       return;
     }
-
-    // if (!action.timestamp.trim() || !action.description.trim()) {
-    //   Alert.alert('Error', 'Please fill in both time and description');
-    //   return;
-    // }
-
     try {
       const { data, error } = await supabase
         .from('Actions')
@@ -105,38 +99,42 @@ export default function JournalEntryIndex() {
       }
       
       action.sketch_id=data[0].sketch_id;
-      
-      //const actionDbId = data[0].id;
-      
-      // If there's a pending sketch, link it to this action
-      // if (action.pendingSketchId) {
-      //   try {
-      //     const { error: sketchLinkError } = await supabase
-      //       .from('Actions')
-      //       .update({
-      //         sketch_id: action.pendingSketchId
-      //       })
-      //       .eq('id', actionDbId);
-
-      //     if (sketchLinkError) {
-      //       console.error('Error linking sketch to action:', sketchLinkError);
-      //       // Don't fail the action submission, just log the error
-      //     } else {
-      //       console.log('Sketch linked to action successfully');
-      //     }
-      //   } catch (sketchError) {
-      //     console.error('Error linking sketch:', sketchError);
-      //   }
-      // }
-      
-      // Mark the action as submitted instead of removing it
-    //   setActions(actions.map(a => 
-    //     a.id === action.id ? { ...a, isSubmitted: true, dbId: actionDbId } : a
-    //   ));
     } catch (error) {
       console.error('Error submitting action:', error);
       Alert.alert('Error', 'Failed to submit action');
     }
+  };
+
+  const handleDeleteAction = async (action: Action) => {
+    Alert.alert(
+      'Delete Action',
+      'Are you sure you want to delete this action?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            let filter = action.timestamp.toString();
+            try {
+              const { data, error } = await supabase
+              .from('Actions')
+              .delete()
+              .eq('time_stamp', filter)
+              .select();
+              console.log(data);
+              setActions(actions.filter((a) => a !== action));
+            } catch (error) {
+              console.error('Error deleting action:', error);
+              Alert.alert('Error', 'Failed to delete action');
+            }
+          }
+        }
+      ]
+    )
   };
 
   const handleSketchAction = (action: Action) => {
@@ -234,10 +232,14 @@ export default function JournalEntryIndex() {
 
   return (
     <View style={styles.container}>
+      
+      {/* <KeyboardAwareScrollView> */}
+
       <ScrollView 
         ref={scrollViewRef}
         style={styles.scrollView} 
         contentContainerStyle={styles.scrollContent}
+        automaticallyAdjustKeyboardInsets={true}
       >
         {actions.map((action) => (
           <View key={action.id} style={styles.actionContainer}>
@@ -259,27 +261,33 @@ export default function JournalEntryIndex() {
                 multiline
                 onBlur={() => handleSubmitAction(action)}
               />
-              <TouchableOpacity 
-                style={styles.sketchButton}
-                onPress={() => handleSketchAction(action)}
-              >
-                <Image
-                  source={require('../../../assets/images/onwards.png')}
-                  style={styles.sketchButtonIcon}
-                />
-              </TouchableOpacity>
-
-              {/* <TouchableOpacity 
-                  style={styles.submitButton}
-                  onPress={() => handleSubmitAction(action)}
+              <View style={styles.buttonColumn}>
+                <TouchableOpacity 
+                  style={styles.sketchButton}
+                  onPress={() => handleSketchAction(action)}
                 >
-                  <Text style={styles.submitButtonText}>Save</Text>
-              </TouchableOpacity> */}
-
+                  <Image
+                    source={require('../../../assets/images/onwards.png')}
+                    style={styles.sketchButtonIcon}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity 
+                style={styles.sketchButton}
+                onPress={() => handleDeleteAction(action)}
+                >
+                <Image
+                  source={require('../../../assets/images/trash.png')}
+                  style={styles.deleteButtonIcon}
+                />
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         ))}
       </ScrollView>
+      
+      {/* </KeyboardAwareScrollView> */}
+      
       
       <View style={styles.bottomButtonsContainer}>
         <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteSession}>
@@ -316,6 +324,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     width: '100%',
     gap: 5,
+    alignItems: 'center'
   },
   timestampInput: {
     flex: 1,
@@ -328,8 +337,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   descriptionInput: {
-    flex: 3,
-    height: 40,
+    flex: 4,
+    height: 80,
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 8,
@@ -371,7 +380,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 8,
-    backgroundColor: '#2196f3',
+    backgroundColor: '#D62C09',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -388,8 +397,11 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 8,
   },
-
-
+  deleteButtonIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+  },
   addButton: {
     position: 'absolute',
     bottom: 20,
@@ -397,7 +409,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#ff9800',
+    backgroundColor: '#58BF02',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -433,7 +445,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff3e0',
   },
   deleteButton: {
-    backgroundColor: '#f44336',
+    backgroundColor: '#D62C09',
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 8,
@@ -445,4 +457,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  buttonColumn: {
+    flexDirection: "column",
+  }
 }); 
