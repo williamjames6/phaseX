@@ -115,7 +115,7 @@ export default function JournalIndex() {
   const handleSessionPress = async (session: Session) => {
     try {
       // Navigate to journal entry with the existing session ID
-      router.push(`/journal/journalEntry?sessionId=${session.id}`);
+      router.push(`/journal/journalEntry?sessionId=${session.id}&sessionDate=${session.date}`);
     } catch (error) {
       console.error('Error navigating to session:', error);
       Alert.alert('Error', 'Failed to open session');

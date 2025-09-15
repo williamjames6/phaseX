@@ -55,22 +55,22 @@ export default function HomeScreen() {
       setChatHistory(prev => [...prev, `You: ${query}`]);
 
       // Fetch recent sketches
-      const { data: sketches, error } = await supabase
-        .from('TacticalSketches')
-        .select('description, created_at')
+      const { data: actions, error } = await supabase
+        .from('Actions')
+        .select('description')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(3);
+        //.order('created_at', { ascending: false })
+        .limit(20);
 
       if (error) throw error;
 
       // Populate inputList with sketch descriptions
-      if (sketches) {
-        sketches.forEach((sketch, index) => {
-          const createdAt = new Date(sketch.created_at).toLocaleString();
+      if (actions) {
+        actions.forEach((action, index) => {
+          //const createdAt = new Date(action.created_at).toLocaleString();
           inputList.push({
             role: 'user',
-            content: `This is the data from the sketch created at ${createdAt}: ${sketch.description}`
+            content: `This is the data from the sketch created at 9/13/25: ${action.description}`
           });
         });
       }
@@ -80,6 +80,8 @@ export default function HomeScreen() {
         role: 'user',
         content: query
       });
+
+      console.log(inputList);
 
       const response = await client.responses.create({
         model: "gpt-4.1",

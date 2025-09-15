@@ -14,7 +14,7 @@ interface Action {
 }
 
 export default function JournalEntryIndex() {
-  const { sessionId } = useLocalSearchParams();
+  const { sessionId, sessionDate } = useLocalSearchParams();
   const [actions, setActions] = useState<Action[]>([]);
   const [nextId, setNextId] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -42,7 +42,7 @@ export default function JournalEntryIndex() {
         timestamp: dbAction.time_stamp,
         description: dbAction.description,
         dbId: dbAction.id, // Store the actual database ID
-        sketch_id: dbAction.sketch_id 
+        sketch_id: dbAction.sketch_id
       }));
 
       setActions(existingActions);
@@ -64,7 +64,7 @@ export default function JournalEntryIndex() {
       timestamp: '',
       description: '',
       dbId: uuidv4(),
-      sketch_id: uuidv4()
+      sketch_id: uuidv4(),
     };
     console.log(newAction);
     setActions([...actions, newAction]);
@@ -118,7 +118,7 @@ export default function JournalEntryIndex() {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            let filter = action.timestamp.toString();
+            let filter = action.timestamp;
             try {
               const { data, error } = await supabase
               .from('Actions')
