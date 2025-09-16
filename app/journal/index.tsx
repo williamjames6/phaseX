@@ -136,10 +136,13 @@ export default function JournalIndex() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-      <TouchableOpacity style={styles.primaryButton} onPress={handleNewSession}>
-        <Text style={styles.primaryButtonText}>New Session</Text>
-      </TouchableOpacity>
-      
+
+      <View style={styles.addContainer}>           
+        <TouchableOpacity style={styles.addButton} onPress={handleNewSession}>
+          <Text style={styles.plusSign}>+</Text>
+        </TouchableOpacity>
+      </View>
+    
       {loading ? (
         <Text style={styles.loadingText}>Loading sessions...</Text>
       ) : recentSessions.length > 0 ? (
@@ -418,4 +421,33 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  plusSign: {
+    color: 'white',
+    fontSize: 32,
+    fontWeight: 'bold',
+    lineHeight: 32,
+  },
+  addButton: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#F41A99',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    marginBottom: 20,
+  },
+  addContainer: {
+    flexDirection: "row",
+    width: "100%",
+    alignItems: 'center',
+    justifyContent: "center",
+  }
 }); 

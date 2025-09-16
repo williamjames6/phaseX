@@ -66,7 +66,6 @@ export default function JournalEntryIndex() {
       dbId: uuidv4(),
       sketch_id: uuidv4(),
     };
-    console.log(newAction);
     setActions([...actions, newAction]);
     setNextId(nextId + 1);
   };
@@ -85,7 +84,8 @@ export default function JournalEntryIndex() {
             session_id: sessionId,
             time_stamp: action.timestamp,
             description: action.description,
-            sketch_id: action.sketch_id
+            sketch_id: action.sketch_id,
+            session_date: sessionDate
           }
           ],
           {onConflict: 'id'}
@@ -119,11 +119,12 @@ export default function JournalEntryIndex() {
           style: 'destructive',
           onPress: async () => {
             let filter = action.timestamp;
+            console.log(action.dbId, typeof(action.dbId));
             try {
               const { data, error } = await supabase
               .from('Actions')
               .delete()
-              .eq('time_stamp', filter)
+              .eq('id', action.dbId)
               .select();
               console.log(data);
               setActions(actions.filter((a) => a !== action));

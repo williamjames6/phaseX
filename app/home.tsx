@@ -54,13 +54,13 @@ export default function HomeScreen() {
       // Add user's query to chat history
       setChatHistory(prev => [...prev, `You: ${query}`]);
 
-      // Fetch recent sketches
+      // Fetch recent actions
       const { data: actions, error } = await supabase
         .from('Actions')
-        .select('description')
+        .select('description, time_stamp, session_date')
         .eq('user_id', user.id)
-        //.order('created_at', { ascending: false })
-        .limit(20);
+        .order('session_date', { ascending: false })
+        .limit(10);
 
       if (error) throw error;
 
@@ -70,7 +70,7 @@ export default function HomeScreen() {
           //const createdAt = new Date(action.created_at).toLocaleString();
           inputList.push({
             role: 'user',
-            content: `This is the data from the sketch created at 9/13/25: ${action.description}`
+            content: `This is the data from the action at ${action.time_stamp} from the session on ${action.session_date}: ${action.description}`
           });
         });
       }
@@ -152,6 +152,7 @@ export default function HomeScreen() {
               numberOfLines={4}
               style={styles.textInput}
               textAlignVertical="top"
+              editable={false}
             />
             <Button title="Submit" onPress={handleSearch} />
           </View>
