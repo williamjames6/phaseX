@@ -2,7 +2,7 @@ import Constants from 'expo-constants';
 import { Link, router } from 'expo-router';
 import { OpenAI } from 'openai';
 import React, { useRef, useState } from 'react';
-import { Alert, Button, Dimensions, FlatList, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Button, Dimensions, FlatList, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 
 interface InputItem {
@@ -134,34 +134,38 @@ export default function HomeScreen() {
   };
 
   const renderModule = ({ item }: { item: typeof modules[0] }) => (
-    <View style={[styles.moduleContainer, { backgroundColor: item.color }]}>
-      {item.id === 'main' ? (
-        <View style={styles.searchContainer}>
-          <ScrollView style={styles.chatContainer}>
-            {chatHistory.map((message, index) => (
-              <Text key={index} style={styles.chatMessage}>{message}</Text>
-            ))}
-          </ScrollView>
-          <View style={styles.inputContainer}>
-            <TextInput
-              placeholder="How do you want to get better today?"
-              value={query}
-              onChangeText={setQuery}
-              autoCapitalize="none"
-              multiline={true}
-              numberOfLines={4}
-              style={styles.textInput}
-              textAlignVertical="top"
-              editable={false}
-            />
-            <Button title="Submit" onPress={handleSearch} />
+      <View style={[styles.moduleContainer, { backgroundColor: item.color }]}>
+        {item.id === 'main' ? (
+          <View style={styles.searchContainer}>
+            <ScrollView style={styles.chatContainer}>
+              {chatHistory.map((message, index) => (
+                <Text key={index} style={styles.chatMessage}>{message}</Text>
+              ))}
+            </ScrollView>
+            <KeyboardAvoidingView 
+              behavior={Platform.OS === "ios" ? "padding" : undefined}
+              //keyboardVerticalOffset={5} // tweak this to match your header height
+            >
+              <View style={styles.inputContainer}>
+                <TextInput
+                  placeholder="How do you want to get better today?"
+                  value={query}
+                  onChangeText={setQuery}
+                  autoCapitalize="none"
+                  multiline={true}
+                  numberOfLines={4}
+                  style={styles.textInput}
+                  textAlignVertical="top"
+                />
+                <Button title="Submit" onPress={handleSearch} />
+              </View>
+            </KeyboardAvoidingView>
+            <Button title="Logout" onPress={handleLogout} />
           </View>
-          <Button title="Logout" onPress={handleLogout} />
-        </View>
-      ) : (
-        <Link href={item.id} style={styles.moduleTitle}>{item.title} </Link>
-      )}
-    </View>
+        ) : (
+          <Link href={item.id} style={styles.moduleTitle}>{item.title} </Link>
+        )}
+      </View>
   );
 
   return (
@@ -211,23 +215,23 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 20,
-    gap: 20,
+    gap: 5,
   },
   chatContainer: {
     flex: 1,
     width: '100%',
-    marginBottom: 10,
+    marginBottom: 5,
   },
   chatMessage: {
     fontSize: 16,
-    marginBottom: 10,
-    padding: 10,
+    marginBottom: 5,
+    padding: 5,
     backgroundColor: 'rgba(255, 255, 255, 0.8)',
     borderRadius: 8,
   },
   inputContainer: {
     width: '100%',
-    gap: 10,
+    gap: 5,
   },
   textInput: {
     width: '100%',

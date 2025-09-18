@@ -1,6 +1,9 @@
+import { File, Paths } from 'expo-file-system';
 import { router, useFocusEffect } from 'expo-router';
+import * as Sharing from 'expo-sharing';
 import React, { useCallback, useState } from 'react';
 import { Alert, Keyboard, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { convertToCSV } from "../../assets/helpers/json2SCV";
 import { supabase } from '../../lib/supabase';
 
 interface Session {
@@ -19,6 +22,50 @@ export default function JournalIndex() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedType, setSelectedType] = useState('training');
   const limit = 10;
+
+
+  const downloadMonthlyActions = async () => {
+
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
+    const { data, error } = await supabase //don't like this format without "try, catch" blocks but just trying to get functionality right now
+      .from('Actions')
+      .select('time_stamp, description, session_date')
+      .gte('session_date', firstDay)
+      .lte('session_date', lastDay)
+      .order("session_date", {ascending: true});
+  
+    if (error || !data) {
+      console.log(error);
+      return;
+    }
+    const csv = convertToCSV(data);
+
+    let monthName = now.toLocaleString('default', { month: 'long' }), year= now.toLocaleDateString('default', {year: 'numeric'});
+    const fileName = `${monthName}${year}_actions.csv`; 
+    try { 
+      const file = new File(Paths.cache, fileName);
+      file.create(); // can throw an error if the file already exists or no permission to create it
+      file.write(csv);
+      console.log(file.textSync)
+    } catch (error) {
+      console.log("what the heck: ", error);
+      return;
+    }
+
+    // after fileUri is written
+    const fileUri = Paths.cache.uri + fileName;
+    console.log(fileUri);
+    if (await Sharing.isAvailableAsync()) {
+    await Sharing.shareAsync(fileUri, { mimeType: 'text/csv' });
+    } else {
+    console.warn("Sharing not available");
+    }
+    return;
+  }
+  
+
 
   const loadRecentSessions = async (isLoadMore = false) => {
     try {
@@ -246,6 +293,9 @@ export default function JournalIndex() {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+      <TouchableOpacity onPress={downloadMonthlyActions}>
+        <Text> Download! </Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }

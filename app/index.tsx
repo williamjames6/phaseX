@@ -24,7 +24,7 @@ export default function LoginScreen() {
       }
 
     } catch (error) {
-      Alert.alert('Error', error.message);
+      Alert.alert('Error');
     }
   };
 
@@ -40,7 +40,7 @@ export default function LoginScreen() {
       // Navigate to home screen after successful login
       router.replace('/home');
     } catch (error) {
-      Alert.alert('Error', error.message);
+      Alert.alert('Error');
     }
   };
 
