@@ -9,7 +9,7 @@ export default function JournalLayout() {
         options={{
           title: 'Journal',
           headerStyle: {
-            backgroundColor: '#fff3e0',
+            backgroundColor: '#aff3e0',
           },
           headerTintColor: '#000',
           headerTitleStyle: {

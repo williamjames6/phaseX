@@ -35,6 +35,19 @@ export default {
       supabaseKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
       openaiApiKey: process.env.EXPO_PUBLIC_OPENAI_API_KEY,
     },
-    scheme: "phasex"
+    scheme: "phasex",
+    plugins: [
+      [
+        // "expo-secure-store",
+        // {
+        //   "configureAndroidBackup": false,
+        //   "faceIDPermission": "Allow $(PRODUCT_NAME) to access your Face ID biometric data."
+        // },
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow phaseX to use Face ID."
+        }
+      ]
+    ]
   }
 }; 

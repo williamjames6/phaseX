@@ -1,8 +1,9 @@
 import Constants from 'expo-constants';
 import { Link, router } from 'expo-router';
 import { OpenAI } from 'openai';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Button, Dimensions, FlatList, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import useAppState from 'react-native-useappstate';
 import { supabase } from '../lib/supabase';
 
 interface InputItem {
@@ -38,6 +39,15 @@ export default function HomeScreen() {
   const [response, setResponse] = useState('');
   const [chatHistory, setChatHistory] = useState<string[]>([]);
 
+  const appState = useAppState();
+
+  useEffect(() => {
+    if (appState === 'background') {
+      router.replace('/');
+      return;
+    }
+  }, [appState]);
+
   //make request to openAI API
   const handleSearch = async () => {
     const inputList: InputItem[] = [];
@@ -60,7 +70,7 @@ export default function HomeScreen() {
         .select('description, time_stamp, session_date')
         .eq('user_id', user.id)
         .order('session_date', { ascending: false })
-        .limit(10);
+        .limit(100);
 
       if (error) throw error;
 
@@ -81,7 +91,7 @@ export default function HomeScreen() {
         content: query
       });
 
-      console.log(inputList);
+      //console.log(inputList);
 
       const response = await client.responses.create({
         model: "gpt-4.1",
@@ -104,6 +114,7 @@ export default function HomeScreen() {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
+      console.log("Logged out");
       router.replace('/');
     } catch (error: unknown) {
       if (error instanceof Error) {
