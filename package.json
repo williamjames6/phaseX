@@ -11,6 +11,7 @@
     "lint": "expo lint"
   },
   "dependencies": {
+    "@expo/config-plugins": "^54.0.1",
     "@expo/vector-icons": "^15.0.2",
     "@react-native-community/datetimepicker": "8.4.4",
     "@react-native/metro-config": "^0.81.1",
@@ -20,7 +21,7 @@
     "@react-navigation/native-stack": "^7.3.10",
     "@supabase/supabase-js": "^2.49.9",
     "dotenv": "^16.5.0",
-    "expo": "^54.0.8",
+    "expo": "^54.0.10",
     "expo-blur": "~15.0.7",
     "expo-constants": "~18.0.9",
     "expo-file-system": "^19.0.14",
@@ -62,6 +63,7 @@
     "babel-preset-expo": "~13.0.0",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~9.2.0",
+    "expo-cli": "^6.3.10",
     "typescript": "~5.8.3"
   },
   "private": true

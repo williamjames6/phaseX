@@ -8,53 +8,20 @@
 
 /* Begin PBXBuildFile section */
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
-		37674DFAA363F63FD20FE408 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A2BB751BBB6763FE4818B42 /* ExpoModulesProvider.swift */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		8D928C76806E8DB63B578BAE /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 7B9615F665EC1F923AE9D5B6 /* PrivacyInfo.xcprivacy */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
-		FB5EB289D6805048BD0EB7DE /* libPods-phaseX.a in Frameworks */ = {isa = PBXBuildFile; fileRef = CE3F8342B57D056A29882B98 /* libPods-phaseX.a */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		0A2BB751BBB6763FE4818B42 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-phaseX/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* phaseX.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = phaseX.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = phaseX/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = phaseX/Info.plist; sourceTree = "<group>"; };
-		60F7E1B48AD016FC9C47B43B /* Pods-phaseX.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-phaseX.debug.xcconfig"; path = "Target Support Files/Pods-phaseX/Pods-phaseX.debug.xcconfig"; sourceTree = "<group>"; };
-		7B9615F665EC1F923AE9D5B6 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = phaseX/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = phaseX/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
-		CE3F8342B57D056A29882B98 /* libPods-phaseX.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-phaseX.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = phaseX/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* phaseX-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "phaseX-Bridging-Header.h"; path = "phaseX/phaseX-Bridging-Header.h"; sourceTree = "<group>"; };
-		F5701BCA2E62709C0005AF6B /* entry-0e1dc3b786e3352641236fd50bc0d2e1.hbc */ = {isa = PBXFileReference; lastKnownFileType = file; path = "entry-0e1dc3b786e3352641236fd50bc0d2e1.hbc"; sourceTree = "<group>"; };
-		F5701BCF2E62709C0005AF6B /* 0a328cd9c1afd0afe8e3b1ec5165b1b4 */ = {isa = PBXFileReference; lastKnownFileType = file; path = 0a328cd9c1afd0afe8e3b1ec5165b1b4; sourceTree = "<group>"; };
-		F5701BD02E62709C0005AF6B /* 0ea69b5077e7c4696db85dbcba75b0e1 */ = {isa = PBXFileReference; lastKnownFileType = file; path = 0ea69b5077e7c4696db85dbcba75b0e1; sourceTree = "<group>"; };
-		F5701BD12E62709C0005AF6B /* 1d3d1f1b87f0bd3b03b6ced2f838ef32 */ = {isa = PBXFileReference; lastKnownFileType = file; path = 1d3d1f1b87f0bd3b03b6ced2f838ef32; sourceTree = "<group>"; };
-		F5701BD22E62709C0005AF6B /* 2d0a9133e39524f138be6d4db9f4851f */ = {isa = PBXFileReference; lastKnownFileType = file; path = 2d0a9133e39524f138be6d4db9f4851f; sourceTree = "<group>"; };
-		F5701BD32E62709C0005AF6B /* 3cd68ccdb8938e3711da2e8831b85493 */ = {isa = PBXFileReference; lastKnownFileType = file; path = 3cd68ccdb8938e3711da2e8831b85493; sourceTree = "<group>"; };
-		F5701BD42E62709C0005AF6B /* 7d40544b395c5949f4646f5e150fe020 */ = {isa = PBXFileReference; lastKnownFileType = file; path = 7d40544b395c5949f4646f5e150fe020; sourceTree = "<group>"; };
-		F5701BD52E62709C0005AF6B /* 19eeb73b9593a38f8e9f418337fc7d10 */ = {isa = PBXFileReference; lastKnownFileType = file; path = 19eeb73b9593a38f8e9f418337fc7d10; sourceTree = "<group>"; };
-		F5701BD62E62709C0005AF6B /* 20e71bdf79e3a97bf55fd9e164041578 */ = {isa = PBXFileReference; lastKnownFileType = file; path = 20e71bdf79e3a97bf55fd9e164041578; sourceTree = "<group>"; };
-		F5701BD72E62709C0005AF6B /* 61ca7e64b7d605716c57706cef640b9a */ = {isa = PBXFileReference; lastKnownFileType = file; path = 61ca7e64b7d605716c57706cef640b9a; sourceTree = "<group>"; };
-		F5701BD82E62709C0005AF6B /* 78c625386b4d0690b421eb0fc78f7b9c */ = {isa = PBXFileReference; lastKnownFileType = file; path = 78c625386b4d0690b421eb0fc78f7b9c; sourceTree = "<group>"; };
-		F5701BD92E62709C0005AF6B /* 412dd9275b6b48ad28f5e3d81bb1f626 */ = {isa = PBXFileReference; lastKnownFileType = file; path = 412dd9275b6b48ad28f5e3d81bb1f626; sourceTree = "<group>"; };
-		F5701BDA2E62709C0005AF6B /* 0747a1317bbe9c6fc340b889ef8ab3ae */ = {isa = PBXFileReference; lastKnownFileType = file; path = 0747a1317bbe9c6fc340b889ef8ab3ae; sourceTree = "<group>"; };
-		F5701BDB2E62709C0005AF6B /* 1190ab078c57159f4245a328118fcd9a */ = {isa = PBXFileReference; lastKnownFileType = file; path = 1190ab078c57159f4245a328118fcd9a; sourceTree = "<group>"; };
-		F5701BDC2E62709C0005AF6B /* a132ecc4ba5c1517ff83c0fb321bc7fc */ = {isa = PBXFileReference; lastKnownFileType = file; path = a132ecc4ba5c1517ff83c0fb321bc7fc; sourceTree = "<group>"; };
-		F5701BDD2E62709C0005AF6B /* ab19f4cbc543357183a20571f68380a3 */ = {isa = PBXFileReference; lastKnownFileType = file; path = ab19f4cbc543357183a20571f68380a3; sourceTree = "<group>"; };
-		F5701BDE2E62709C0005AF6B /* aff2c65b39a296d4f7e96d0f58169170 */ = {isa = PBXFileReference; lastKnownFileType = file; path = aff2c65b39a296d4f7e96d0f58169170; sourceTree = "<group>"; };
-		F5701BDF2E62709C0005AF6B /* d1ea1496f9057eb392d5bbf3732a61b7 */ = {isa = PBXFileReference; lastKnownFileType = file; path = d1ea1496f9057eb392d5bbf3732a61b7; sourceTree = "<group>"; };
-		F5701BE02E62709C0005AF6B /* d8b800c443b8972542883e0b9de2bdc6 */ = {isa = PBXFileReference; lastKnownFileType = file; path = d8b800c443b8972542883e0b9de2bdc6; sourceTree = "<group>"; };
-		F5701BE12E62709C0005AF6B /* d8e7601e3df962f83c62371ac14964d8 */ = {isa = PBXFileReference; lastKnownFileType = file; path = d8e7601e3df962f83c62371ac14964d8; sourceTree = "<group>"; };
-		F5701BE22E62709C0005AF6B /* d62ddc38b69aff346c20a28774933d6a */ = {isa = PBXFileReference; lastKnownFileType = file; path = d62ddc38b69aff346c20a28774933d6a; sourceTree = "<group>"; };
-		F5701BE32E62709C0005AF6B /* d84e297c3b3e49a614248143d53e40ca */ = {isa = PBXFileReference; lastKnownFileType = file; path = d84e297c3b3e49a614248143d53e40ca; sourceTree = "<group>"; };
-		F5701BE42E62709C0005AF6B /* dad2fa9f4394a630f0f9a0d6dabd44bc */ = {isa = PBXFileReference; lastKnownFileType = file; path = dad2fa9f4394a630f0f9a0d6dabd44bc; sourceTree = "<group>"; };
-		F5701BE52E62709C0005AF6B /* f3a81967828232c893d547162e922764 */ = {isa = PBXFileReference; lastKnownFileType = file; path = f3a81967828232c893d547162e922764; sourceTree = "<group>"; };
-		F5701BE72E62709C0005AF6B /* metadata.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = metadata.json; sourceTree = "<group>"; };
-		F8405892D09948A5878FE5D9 /* Pods-phaseX.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-phaseX.release.xcconfig"; path = "Target Support Files/Pods-phaseX/Pods-phaseX.release.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -62,22 +29,12 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				FB5EB289D6805048BD0EB7DE /* libPods-phaseX.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		0670828C4D8F52688DC306D0 /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				60F7E1B48AD016FC9C47B43B /* Pods-phaseX.debug.xcconfig */,
-				F8405892D09948A5878FE5D9 /* Pods-phaseX.release.xcconfig */,
-			);
-			path = Pods;
-			sourceTree = "<group>";
-		};
 		13B07FAE1A68108700A75B9A /* phaseX */ = {
 			isa = PBXGroup;
 			children = (
@@ -87,7 +44,6 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				7B9615F665EC1F923AE9D5B6 /* PrivacyInfo.xcprivacy */,
 			);
 			name = phaseX;
 			sourceTree = "<group>";
@@ -96,7 +52,6 @@
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				CE3F8342B57D056A29882B98 /* libPods-phaseX.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -111,13 +66,10 @@
 		83CBB9F61A601CBA00E9B192 = {
 			isa = PBXGroup;
 			children = (
-				F5701BE82E62709C0005AF6B /* dist */,
 				13B07FAE1A68108700A75B9A /* phaseX */,
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				0670828C4D8F52688DC306D0 /* Pods */,
-				FC93579F2FDB961DDE2712F9 /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -132,14 +84,6 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		8C4FEFF90CFE701B0CDDA890 /* phaseX */ = {
-			isa = PBXGroup;
-			children = (
-				0A2BB751BBB6763FE4818B42 /* ExpoModulesProvider.swift */,
-			);
-			name = phaseX;
-			sourceTree = "<group>";
-		};
 		BB2F792B24A3F905000567C9 /* Supporting */ = {
 			isa = PBXGroup;
 			children = (
@@ -147,86 +91,6 @@
 			);
 			name = Supporting;
 			path = phaseX/Supporting;
-			sourceTree = "<group>";
-		};
-		F5701BCB2E62709C0005AF6B /* ios */ = {
-			isa = PBXGroup;
-			children = (
-				F5701BCA2E62709C0005AF6B /* entry-0e1dc3b786e3352641236fd50bc0d2e1.hbc */,
-			);
-			path = ios;
-			sourceTree = "<group>";
-		};
-		F5701BCC2E62709C0005AF6B /* js */ = {
-			isa = PBXGroup;
-			children = (
-				F5701BCB2E62709C0005AF6B /* ios */,
-			);
-			path = js;
-			sourceTree = "<group>";
-		};
-		F5701BCD2E62709C0005AF6B /* static */ = {
-			isa = PBXGroup;
-			children = (
-				F5701BCC2E62709C0005AF6B /* js */,
-			);
-			path = static;
-			sourceTree = "<group>";
-		};
-		F5701BCE2E62709C0005AF6B /* _expo */ = {
-			isa = PBXGroup;
-			children = (
-				F5701BCD2E62709C0005AF6B /* static */,
-			);
-			path = _expo;
-			sourceTree = "<group>";
-		};
-		F5701BE62E62709C0005AF6B /* assets */ = {
-			isa = PBXGroup;
-			children = (
-				F5701BCF2E62709C0005AF6B /* 0a328cd9c1afd0afe8e3b1ec5165b1b4 */,
-				F5701BD02E62709C0005AF6B /* 0ea69b5077e7c4696db85dbcba75b0e1 */,
-				F5701BD12E62709C0005AF6B /* 1d3d1f1b87f0bd3b03b6ced2f838ef32 */,
-				F5701BD22E62709C0005AF6B /* 2d0a9133e39524f138be6d4db9f4851f */,
-				F5701BD32E62709C0005AF6B /* 3cd68ccdb8938e3711da2e8831b85493 */,
-				F5701BD42E62709C0005AF6B /* 7d40544b395c5949f4646f5e150fe020 */,
-				F5701BD52E62709C0005AF6B /* 19eeb73b9593a38f8e9f418337fc7d10 */,
-				F5701BD62E62709C0005AF6B /* 20e71bdf79e3a97bf55fd9e164041578 */,
-				F5701BD72E62709C0005AF6B /* 61ca7e64b7d605716c57706cef640b9a */,
-				F5701BD82E62709C0005AF6B /* 78c625386b4d0690b421eb0fc78f7b9c */,
-				F5701BD92E62709C0005AF6B /* 412dd9275b6b48ad28f5e3d81bb1f626 */,
-				F5701BDA2E62709C0005AF6B /* 0747a1317bbe9c6fc340b889ef8ab3ae */,
-				F5701BDB2E62709C0005AF6B /* 1190ab078c57159f4245a328118fcd9a */,
-				F5701BDC2E62709C0005AF6B /* a132ecc4ba5c1517ff83c0fb321bc7fc */,
-				F5701BDD2E62709C0005AF6B /* ab19f4cbc543357183a20571f68380a3 */,
-				F5701BDE2E62709C0005AF6B /* aff2c65b39a296d4f7e96d0f58169170 */,
-				F5701BDF2E62709C0005AF6B /* d1ea1496f9057eb392d5bbf3732a61b7 */,
-				F5701BE02E62709C0005AF6B /* d8b800c443b8972542883e0b9de2bdc6 */,
-				F5701BE12E62709C0005AF6B /* d8e7601e3df962f83c62371ac14964d8 */,
-				F5701BE22E62709C0005AF6B /* d62ddc38b69aff346c20a28774933d6a */,
-				F5701BE32E62709C0005AF6B /* d84e297c3b3e49a614248143d53e40ca */,
-				F5701BE42E62709C0005AF6B /* dad2fa9f4394a630f0f9a0d6dabd44bc */,
-				F5701BE52E62709C0005AF6B /* f3a81967828232c893d547162e922764 */,
-			);
-			path = assets;
-			sourceTree = "<group>";
-		};
-		F5701BE82E62709C0005AF6B /* dist */ = {
-			isa = PBXGroup;
-			children = (
-				F5701BCE2E62709C0005AF6B /* _expo */,
-				F5701BE62E62709C0005AF6B /* assets */,
-				F5701BE72E62709C0005AF6B /* metadata.json */,
-			);
-			path = dist;
-			sourceTree = "<group>";
-		};
-		FC93579F2FDB961DDE2712F9 /* ExpoModulesProviders */ = {
-			isa = PBXGroup;
-			children = (
-				8C4FEFF90CFE701B0CDDA890 /* phaseX */,
-			);
-			name = ExpoModulesProviders;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -237,14 +101,11 @@
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "phaseX" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				0632C94E5CD018E8FCF6A7B6 /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
-				F5F9AC222E64E97F0020F77C /* Bundle React Native code and images */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
-				0F62E8DC44A389EC8CD8B871 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -294,7 +155,6 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				8D928C76806E8DB63B578BAE /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -308,37 +168,15 @@
 			files = (
 			);
 			inputPaths = (
+				"$(SRCROOT)/.xcode.env",
+				"$(SRCROOT)/.xcode.env.local",
 			);
 			name = "Bundle React Native code and images";
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if [[ -f \"$PODS_ROOT/../.xcode.env\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env\"\nfi\nif [[ -f \"$PODS_ROOT/../.xcode.env.local\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.local\"\nfi\n\n# The project root by default is one level up from the ios directory\nexport PROJECT_ROOT=\"$PROJECT_DIR\"/..\n\nif [[ \"$CONFIGURATION\" = *Debug* ]]; then\n  export SKIP_BUNDLING=1\nfi\nif [[ -z \"$ENTRY_FILE\" ]]; then\n  # Set the entry JS file using the bundler's entry resolution.\n  export ENTRY_FILE=\"$(\"$NODE_BINARY\" -e \"require('expo/scripts/resolveAppEntry')\" \"$PROJECT_ROOT\" ios absolute | tail -n 1)\"\nfi\n\nif [[ -z \"$CLI_PATH\" ]]; then\n  # Use Expo CLI\n  export CLI_PATH=\"$(\"$NODE_BINARY\" --print \"require.resolve('@expo/cli')\")\"\nfi\nif [[ -z \"$BUNDLE_COMMAND\" ]]; then\n  # Default Expo CLI command for bundling\n  export BUNDLE_COMMAND=\"export:embed\"\nfi\n\n`\"$NODE_BINARY\" --print \"require('path').dirname(require.resolve('react-native/package.json')) + '/scripts/react-native-xcode.sh'\"`\n";
-		};
-		0632C94E5CD018E8FCF6A7B6 /* [Expo] Configure project */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"$(SRCROOT)/.xcode.env",
-				"$(SRCROOT)/.xcode.env.local",
-				"$(SRCROOT)/phaseX/phaseX.entitlements",
-				"$(SRCROOT)/Pods/Target Support Files/Pods-phaseX/expo-configure-project.sh",
-			);
-			name = "[Expo] Configure project";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(SRCROOT)/Pods/Target Support Files/Pods-phaseX/ExpoModulesProvider.swift",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-phaseX/expo-configure-project.sh\"\n";
+			shellScript = "if [[ -f \"$PODS_ROOT/../.xcode.env\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env\"\nfi\nif [[ -f \"$PODS_ROOT/../.xcode.env.local\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.local\"\nfi\n\n# The project root by default is one level up from the ios directory\nexport PROJECT_ROOT=\"$PROJECT_DIR\"/..\n\nif [[ \"$CONFIGURATION\" = *Debug* ]]; then\n  export SKIP_BUNDLING=1\nfi\nif [[ -z \"$ENTRY_FILE\" ]]; then\n  # Set the entry JS file using the bundler's entry resolution.\n  export ENTRY_FILE=\"$(\"$NODE_BINARY\" -e \"require('expo/scripts/resolveAppEntry')\" \"$PROJECT_ROOT\" ios absolute | tail -n 1)\"\nfi\n\nif [[ -z \"$CLI_PATH\" ]]; then\n  # Use Expo CLI\n  export CLI_PATH=\"$(\"$NODE_BINARY\" --print \"require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })\")\"\nfi\nif [[ -z \"$BUNDLE_COMMAND\" ]]; then\n  # Default Expo CLI command for bundling\n  export BUNDLE_COMMAND=\"export:embed\"\nfi\n\n# Source .xcode.env.updates if it exists to allow\n# SKIP_BUNDLING to be unset if needed\nif [[ -f \"$PODS_ROOT/../.xcode.env.updates\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.updates\"\nfi\n# Source local changes to allow overrides\n# if needed\nif [[ -f \"$PODS_ROOT/../.xcode.env.local\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.local\"\nfi\n\n`\"$NODE_BINARY\" --print \"require('path').dirname(require.resolve('react-native/package.json')) + '/scripts/react-native-xcode.sh'\"`\n\n";
 		};
 		08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -362,24 +200,6 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		0F62E8DC44A389EC8CD8B871 /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-phaseX/Pods-phaseX-frameworks.sh",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputPaths = (
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermes.framework",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-phaseX/Pods-phaseX-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
 		800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -388,53 +208,19 @@
 			inputPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-phaseX/Pods-phaseX-resources.sh",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/EXConstants.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/ExpoConstants_privacy.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoFileSystem/ExpoFileSystem_privacy.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoSystemUI/ExpoSystemUI_privacy.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/RCT-Folly/RCT-Folly_privacy.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/RNSVG/RNSVGFilters.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/React-Core/React-Core_privacy.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/React-cxxreact/React-cxxreact_privacy.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/SDWebImage/SDWebImage.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/boost/boost_privacy.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/glog/glog_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/EXUpdates/EXUpdates.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/React-Core/RCTI18nStrings.bundle",
 			);
 			name = "[CP] Copy Pods Resources";
 			outputPaths = (
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/EXConstants.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoConstants_privacy.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoFileSystem_privacy.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoSystemUI_privacy.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/RCT-Folly_privacy.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/RNSVGFilters.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-Core_privacy.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-cxxreact_privacy.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/SDWebImage.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/boost_privacy.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/glog_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/EXUpdates.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/RCTI18nStrings.bundle",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-phaseX/Pods-phaseX-resources.sh\"\n";
 			showEnvVarsInLog = 0;
-		};
-		F5F9AC222E64E97F0020F77C /* Bundle React Native code and images */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 12;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-			);
-			name = "Bundle React Native code and images";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "if [[ -f \"$PODS_ROOT/../.xcode.env\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env\"\nfi\nif [[ -f \"$PODS_ROOT/../.xcode.env.local\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.local\"\nfi\n\n# The project root by default is one level up from the ios directory\nexport PROJECT_ROOT=\"$PROJECT_DIR\"/..\n\nif [[ \"$CONFIGURATION\" = *Debug* ]]; then\n  export SKIP_BUNDLING=1\nfi\nif [[ -z \"$ENTRY_FILE\" ]]; then\n  # Set the entry JS file using the bundler's entry resolution.\n  export ENTRY_FILE=\"$(\"$NODE_BINARY\" -e \"require('expo/scripts/resolveAppEntry')\" \"$PROJECT_ROOT\" ios absolute | tail -n 1)\"\nfi\n\nif [[ -z \"$CLI_PATH\" ]]; then\n  # Use Expo CLI\n  export CLI_PATH=\"$(\"$NODE_BINARY\" --print \"require.resolve('@expo/cli')\")\"\nfi\nif [[ -z \"$BUNDLE_COMMAND\" ]]; then\n  # Default Expo CLI command for bundling\n  export BUNDLE_COMMAND=\"export:embed\"\nfi\n\n`\"$NODE_BINARY\" --print \"require('path').dirname(require.resolve('react-native/package.json')) + '/scripts/react-native-xcode.sh'\"`\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -444,7 +230,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				37674DFAA363F63FD20FE408 /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -453,13 +238,10 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 60F7E1B48AD016FC9C47B43B /* Pods-phaseX.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_ENTITLEMENTS = phaseX/phaseX.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 6SD7QG74U4;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
@@ -477,26 +259,23 @@
 					"-ObjC",
 					"-lc++",
 				);
-				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
-				PRODUCT_BUNDLE_IDENTIFIER = com.wiles99.phaseX;
-				PRODUCT_NAME = phaseX;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.wiles99.phaseX";
+				PRODUCT_NAME = "phaseX";
 				SWIFT_OBJC_BRIDGING_HEADER = "phaseX/phaseX-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
 				VERSIONING_SYSTEM = "apple-generic";
+				TARGETED_DEVICE_FAMILY = "1,2";
+				CODE_SIGN_ENTITLEMENTS = phaseX/phaseX.entitlements;
 			};
 			name = Debug;
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = F8405892D09948A5878FE5D9 /* Pods-phaseX.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_ENTITLEMENTS = phaseX/phaseX.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 6SD7QG74U4;
 				INFOPLIST_FILE = phaseX/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -509,13 +288,13 @@
 					"-ObjC",
 					"-lc++",
 				);
-				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
-				PRODUCT_BUNDLE_IDENTIFIER = com.wiles99.phaseX;
-				PRODUCT_NAME = phaseX;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.wiles99.phaseX";
+				PRODUCT_NAME = "phaseX";
 				SWIFT_OBJC_BRIDGING_HEADER = "phaseX/phaseX-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
 				VERSIONING_SYSTEM = "apple-generic";
+				TARGETED_DEVICE_FAMILY = "1,2";
+				CODE_SIGN_ENTITLEMENTS = phaseX/phaseX.entitlements;
 			};
 			name = Release;
 		};
@@ -571,18 +350,10 @@
 					/usr/lib/swift,
 					"$(inherited)",
 				);
-				LIBRARY_SEARCH_PATHS = "$(SDKROOT)/usr/lib/swift\"$(inherited)\"";
+				LIBRARY_SEARCH_PATHS = "\"$(inherited)\"";
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					" ",
-				);
-				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG";
-				SWIFT_VERSION = 5.0;
-				USE_HERMES = true;
 			};
 			name = Debug;
 		};
@@ -631,16 +402,9 @@
 					/usr/lib/swift,
 					"$(inherited)",
 				);
-				LIBRARY_SEARCH_PATHS = "$(SDKROOT)/usr/lib/swift\"$(inherited)\"";
+				LIBRARY_SEARCH_PATHS = "\"$(inherited)\"";
 				MTL_ENABLE_DEBUG_INFO = NO;
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					" ",
-				);
-				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
-				SWIFT_VERSION = 5.0;
-				USE_HERMES = true;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
