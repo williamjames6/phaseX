@@ -34,6 +34,9 @@ export default {
       supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
       supabaseKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
       openaiApiKey: process.env.EXPO_PUBLIC_OPENAI_API_KEY,
+      "eas": {
+        "projectId": "ae71b928-10c5-4fa4-8503-f2b7d3cbed31"
+      }
     },
     scheme: "phasex",
     plugins: [
