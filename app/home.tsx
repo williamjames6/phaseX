@@ -1,8 +1,10 @@
+import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { Link, router } from 'expo-router';
 import { OpenAI } from 'openai';
+import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Button, Dimensions, FlatList, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Button, Dimensions, FlatList, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import useAppState from 'react-native-useappstate';
 import { supabase } from '../lib/supabase';
 
@@ -33,11 +35,12 @@ const cyclicalModules = [
 ];
 
 export default function HomeScreen() {
-  const flatListRef = useRef(null);
+  const flatListRef = useRef<FlatList<any>>(null);
   const [currentIndex, setCurrentIndex] = useState(1);
   const [query, setQuery] = useState('');
   const [response, setResponse] = useState('');
   const [chatHistory, setChatHistory] = useState<string[]>([]);
+  const {width, height} = useWindowDimensions();
 
   const appState = useAppState();
 
@@ -50,6 +53,7 @@ export default function HomeScreen() {
 
   //make request to openAI API
   const handleSearch = async () => {
+    Keyboard.dismiss();
     const inputList: InputItem[] = [];
 
     try {
@@ -93,15 +97,27 @@ export default function HomeScreen() {
 
       //console.log(inputList);
 
-      const response = await client.responses.create({
-        model: "gpt-4.1",
-        instructions: "You are a helpful assistant that will help me get better at football.",
-        input: inputList,
+      const messages: ChatCompletionMessageParam[] = [
+        {
+          role: 'system',
+          content: 'You are a helpful assistant that will aid the user in trying to improve their performance on the football pitch. Answer questions as briefly as possible while still being friendly. Your job is to tailor your answers as much as possible to the input actions from the user. Focus on actionable ideas the user can implement in their team or personal training.'
+        },
+        ...inputList.map<ChatCompletionMessageParam>(item => ({
+          role: (item.role === 'assistant' || item.role === 'system') ? item.role : 'user',
+          content: item.content
+        }))
+      ];
+
+      const completion = await client.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages
       });
-      
+
+      const assistantText = completion.choices[0]?.message?.content ?? '';
+
       // Add assistant's response to chat history
-      setChatHistory(prev => [...prev, `Assistant: ${response.output_text}`]);
-      setResponse(response.output_text);
+      setChatHistory(prev => [...prev, `Assistant: ${assistantText}`]);
+      setResponse(assistantText);
       setQuery(''); // Clear the input after sending
 
     } catch (error) {
@@ -164,11 +180,17 @@ export default function HomeScreen() {
                   onChangeText={setQuery}
                   autoCapitalize="none"
                   multiline={true}
-                  numberOfLines={4}
+                  scrollEnabled={false}
                   style={styles.textInput}
-                  textAlignVertical="top"
+                  onSubmitEditing={handleSearch}
                 />
-                <Button title="Submit" onPress={handleSearch} />
+                <TouchableOpacity
+                  onPress={handleSearch}
+                  activeOpacity={0.8}
+                  style={styles.sendButton}
+                >
+                  <Ionicons name="arrow-up" size={18} color="#ffffff" />
+                </TouchableOpacity>
               </View>
             </KeyboardAvoidingView>
             <Button title="Logout" onPress={handleLogout} />
@@ -223,7 +245,7 @@ const styles = StyleSheet.create({
   searchContainer: {
     flex: 1,
     width: '100%',
-    justifyContent: 'space-between',
+    justifyContent: 'space-around',
     alignItems: 'center',
     padding: 20,
     gap: 5,
@@ -241,16 +263,53 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   inputContainer: {
-    width: '100%',
-    gap: 5,
+    //height: 36,
+    width: width*.9,
+    marginHorizontal: 0,
+    paddingRight: 0,
+    paddingLeft: 0,
+    //position: 'relative',
+    //alignSelf: 'stretch',
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 24,
+    backgroundColor: 'white',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'space-between'
   },
   textInput: {
     width: '100%',
-    minHeight: 100,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 10,
-    backgroundColor: 'white',
+    paddingHorizontal: 8,
+    fontSize: 16,
+    //minHeight: 50,
+    // minHeight: 44,
+    // maxHeight: 160,
+  },
+  sendButton: {
+    // position: 'absolute',
+    // right: 14,
+    // top: '50%',
+    // transform: [{ translateY: -16 }],
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#111827',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+    alignSelf: 'flex-end',
+    marginRight: 5,
+    marginTop: 5,
+    marginBottom: 5
+    //marginLeft: 'auto',
+    //alignSelf: 'flex-end',
+    // paddingRight: 5,
+    // paddingBottom: 5,
   }
 }); 
