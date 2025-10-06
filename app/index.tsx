@@ -1,5 +1,6 @@
 import * as LocalAuthentication from 'expo-local-authentication';
 import { router } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router/build/hooks';
 import * as SecureStore from 'expo-secure-store';
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, Dimensions, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -14,6 +15,7 @@ export default function LoginScreen() {
   //const [authenticated, setAuthenticated] = useState(false);
   const [session, setSession] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
+  const {fromLogout} = useLocalSearchParams<{ fromLogout?: string }>();
   
   // Animation values
   const loginOpacity = useRef(new Animated.Value(0)).current;
@@ -57,21 +59,19 @@ export default function LoginScreen() {
       }
     };
 
+    if (appState === "active") {
+      console.log("active");
+      fetchSession();
+    };
+
     if (appState === "inactive" || "null") {
       console.log("null / inactive")
       return;
     };
 
-    if (appState === "active" && session) {
-      "fetch session"
-      fetchSession();
-    };
-
-    // if (appState === 'background') {
-    //   console.log("appState to background");
-    //   router.replace('/');
-    //   return;
-    // }
+    if (fromLogout === "true") {
+      return;
+    }
   }, [appState]);
 
   const handleFaceID = async () => {
@@ -101,30 +101,6 @@ export default function LoginScreen() {
       const accessToken = await SecureStore.getItemAsync('access_token');
       console.log(refreshToken);
       console.log(accessToken);
-      // Retrieve refresh token
-      // const refreshToken = await SecureStore.getItemAsync('refresh_token');
-      // if (!refreshToken) {
-      //   console.warn("No stored session — user must log in manually first");
-      //   return;
-      // }
-      // // Retrieve access token
-      // const accessToken = await SecureStore.getItemAsync('access_token');
-      // if (!accessToken) {
-      //   console.warn("No stored session — user must log in manually first");
-      //   return;
-      // }
-
-      // if (result.success) {
-      //   const { data, error } = await supabase.auth.setSession({access_token: accessToken, refresh_token: refreshToken });
-      //   if (data) {
-      //     console.log("TOKENS: ",accessToken, refreshToken);
-      //     router.replace('/home');
-      //   }
-      //   if (error) {
-      //     console.error("Failed to restore session", error);
-      //     return;
-      //   }
-      // }
     } catch (error) {
       Alert.alert('Error');
     }

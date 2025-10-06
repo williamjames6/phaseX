@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Dimensions, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '../../../lib/supabase';
@@ -12,13 +12,17 @@ interface Action {
   dbId: string; // Store the actual database UUID for submitted actions
   sketch_id: string; // Store sketch ID that needs to be linked when action is submitted
 }
+const { width, height } = Dimensions.get('window');
 
 export default function JournalEntryIndex() {
-  const { sessionId, sessionDate } = useLocalSearchParams();
+  const { sessionId, sessionDate, sessionType } = useLocalSearchParams();
   const [actions, setActions] = useState<Action[]>([]);
   const [nextId, setNextId] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [isNote, setIsNote] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
+  const timeRegex = /\b\d{1,3}:\d{2}\b/;
+
 
   // Load existing actions for this session
   const loadExistingActions = async () => {
@@ -35,6 +39,7 @@ export default function JournalEntryIndex() {
         console.error('Error loading actions:', error);
         return;
       }
+      
 
       // Convert database actions to local action format
       const existingActions: Action[] = (data || []).map((dbAction, index) => ({
@@ -44,7 +49,18 @@ export default function JournalEntryIndex() {
         dbId: dbAction.id, // Store the actual database ID
         sketch_id: dbAction.sketch_id
       }));
-
+      
+      if (existingActions.length === 0) {
+        const starterAction: Action = {
+          id: -1,
+          timestamp: "",
+          description: "",
+          dbId: uuidv4(), 
+          sketch_id: uuidv4(),
+        }
+        existingActions.push(starterAction) 
+      }
+      
       setActions(existingActions);
       setNextId(Math.abs(existingActions.length) + 1); // Set next ID after existing actions
     } catch (error) {
@@ -58,6 +74,7 @@ export default function JournalEntryIndex() {
     loadExistingActions();
   }, [sessionId]);
 
+
   const handleAddAction = () => {
     const newAction: Action = {
       id: nextId,
@@ -70,9 +87,14 @@ export default function JournalEntryIndex() {
     setNextId(nextId + 1);
   };
 
-  const handleSubmitAction = async (action: Action) => {
+  const handleSubmitAction = async (action: Action, fromTimeStamp: boolean) => {
     if (!sessionId) {
       Alert.alert('Error', 'No session ID found');
+      return;
+    }
+    if (sessionType !== "note" && !action.timestamp.match(timeRegex) && fromTimeStamp) {
+      console.log(fromTimeStamp);
+      Alert.alert('Please enter a valid time stamp of the form [minutes:seconds]')
       return;
     }
     try {
@@ -232,6 +254,23 @@ export default function JournalEntryIndex() {
   }
 
   return (
+    sessionType === "note" ? 
+    <View style={styles.noteContainer}>
+      {actions.map((action) => (
+        <TextInput
+          key={action.id}
+          style={styles.noteStyle}
+          placeholder=""
+          value={action.description}
+          onChangeText={(value) => updateAction(action.id, 'description', value)}
+          placeholderTextColor="#999"
+          multiline={true}
+          onBlur={() => handleSubmitAction(action, false)}
+        />
+      ))}
+    </View>
+    
+    : 
     <View style={styles.container}>
       
       {/* <KeyboardAwareScrollView> */}
@@ -251,7 +290,7 @@ export default function JournalEntryIndex() {
                 value={action.timestamp}
                 onChangeText={(value) => updateAction(action.id, 'timestamp', value)}
                 placeholderTextColor="#999"
-                onBlur={() => handleSubmitAction(action)}
+                onBlur={() => handleSubmitAction(action, true)}
               />
               <TextInput
                 style={styles.descriptionInput}
@@ -259,8 +298,9 @@ export default function JournalEntryIndex() {
                 value={action.description}
                 onChangeText={(value) => updateAction(action.id, 'description', value)}
                 placeholderTextColor="#999"
-                multiline
-                onBlur={() => handleSubmitAction(action)}
+                multiline={true}
+                //scrollEnabled={false}
+                onBlur={() => handleSubmitAction(action, false)}
               />
               <View style={styles.buttonColumn}>
                 <TouchableOpacity 
@@ -339,7 +379,7 @@ const styles = StyleSheet.create({
   },
   descriptionInput: {
     flex: 4,
-    height: 80,
+    //height: 80,
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 8,
@@ -460,5 +500,41 @@ const styles = StyleSheet.create({
   },
   buttonColumn: {
     flexDirection: "column",
+  },
+  noteContainer: {
+    display: "flex",
+    alignItems: "center",
+    backgroundColor: '#fff3e0',
+    height: height,
+  },
+  noteStyle: {
+    width: width*.9,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginVertical: 10,
+    backgroundColor: 'white',
+    fontSize: 16,
+    textAlignVertical: 'top',
   }
 }); 
+
+// inputContainer: {
+//   //height: 36,
+//   width: width*.9,
+//   marginHorizontal: 0,
+//   paddingRight: 0,
+//   paddingLeft: 0,
+//   //position: 'relative',
+//   //alignSelf: 'stretch',
+//   borderWidth: 1,
+//   borderColor: '#ccc',
+//   borderRadius: 24,
+//   backgroundColor: 'white',
+//   display: 'flex',
+//   flexDirection: 'column',
+//   alignItems: 'center',
+//   justifyContent: 'space-between'
+// },

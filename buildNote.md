@@ -18,13 +18,14 @@
 **Bugs from most recent iPhone build**
 FIXED- Chat entry box size, typing off width of screen, slow response time, agent always responding with how to improve instead of just answering question.
 - No faceID auto reentry (expected)
-- Assets not loading? download icon + sketch icon not visible but still respond to touch
-- Sketch functions (eraser, undo, color) (expected)
-- Download modal calendar extend beyond width of modal
+- Assets not loading? download icon + sketch icon not visible but still respond to touch. Possibly due to manually adding my "main.jsbundle" to Xcode?
+FIXED- Download modal calendar extend beyond width of modal
 - Physical backend network request failure (expected)
 - Session creation modal keybaord input only allows for numbers, problems when you change default date entry
+- Splash screen shows up for ~15s when opening app on iPhone (FIX: SWITCH XCODE FROM DEV BUILD TO DEPLOYMENT BUILD)
 
 
 **Features to add**
-- Timestamp entry should be fixed by regex to [0-9]*:[0-9][0-9]. (expected)
-- Journal option should be only text entry
+IMPLEMENTED- Timestamp entry should be fixed by regex to [0-9]*:[0-9][0-9]. (expected)
+- "Note" option should be only text entry (NEED TO IMPLEMENT BACKEND OPERATION FOR NOTE ENTRY, ALTER VALUE SHOWN IN FRONT END OF JOURNALENTRY/INDEX)
+- Sketch functions (eraser, undo, color) (expected)

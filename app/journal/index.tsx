@@ -4,7 +4,7 @@ import { File, Paths } from 'expo-file-system';
 import { router, useFocusEffect } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import React, { useCallback, useLayoutEffect, useState } from 'react';
-import { Alert, Button, Image, Keyboard, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { Alert, Image, Keyboard, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { convertToCSV } from "../../assets/helpers/json2SCV";
 import { supabase } from '../../lib/supabase';
 
@@ -12,6 +12,7 @@ interface Session {
   id: number;
   date: string;
   type: string;
+  description: string | null;
 }
 const MAX_DOWNLOAD_INT = 10000000;
 
@@ -25,11 +26,14 @@ export default function JournalIndex() {
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedType, setSelectedType] = useState('training');
+  const [sessionDescription, setSessionDescription] = useState('');
   const limit = 10;
   const navigation = useNavigation();
   const today = new Date();
+  const monthAgo = new Date();
   const twoYearsAgo = new Date();
   twoYearsAgo.setFullYear(today.getFullYear() - 2);
+  monthAgo.setMonth(today.getMonth()- 1);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [showStartPicker, setShowStartPicker] = useState(false);
@@ -113,7 +117,7 @@ export default function JournalIndex() {
       
       const { data, error } = await supabase
         .from('Sessions')
-        .select('id, date, type')
+        .select('id, date, type, description')
         .order('date', { ascending: false })
         .range(currentOffset, currentOffset + limit - 1);
 
@@ -172,7 +176,8 @@ export default function JournalIndex() {
         .insert([
           {
             date: selectedDate,
-            type: selectedType
+            type: selectedType,
+            description: sessionDescription,
           }
         ])
         .select();
@@ -185,13 +190,14 @@ export default function JournalIndex() {
 
       // Navigate to journal entry with the new session ID
       if (data && data[0]) {
-        router.push(`/journal/journalEntry?sessionId=${data[0].id}`);
+        router.push(`/journal/journalEntry?sessionId=${data[0].id}&sessionDate=${selectedDate}&sessionType=${selectedType}`);
       }
       
       // Reset modal state and reload sessions
       setShowModal(false);
       setSelectedDate(new Date().toISOString().split('T')[0]);
       setSelectedType('training');
+      setSessionDescription('');
       loadRecentSessions();
     } catch (error) {
       console.error('Error creating session:', error);
@@ -202,7 +208,7 @@ export default function JournalIndex() {
   const handleSessionPress = async (session: Session) => {
     try {
       // Navigate to journal entry with the existing session ID
-      router.push(`/journal/journalEntry?sessionId=${session.id}&sessionDate=${session.date}`);
+      router.push(`/journal/journalEntry?sessionId=${session.id}&sessionDate=${session.date}&sessionType=${session.type}`);
     } catch (error) {
       console.error('Error navigating to session:', error);
       Alert.alert('Error', 'Failed to open session');
@@ -240,9 +246,22 @@ export default function JournalIndex() {
               style={styles.sessionButton}
               onPress={() => handleSessionPress(session)}
             >
-              <Text style={styles.sessionButtonText}>
-                {formatDate(session.date)} - {session.type.charAt(0).toUpperCase() + session.type.slice(1)}
-              </Text>
+              {
+                session.description !== null ? (
+                  <View>
+                    <Text style={styles.sessionButtonText}>
+                      {formatDate(session.date)} - {session.type.charAt(0).toUpperCase() + session.type.slice(1)}
+                    </Text>
+                    <Text style={styles.loadingText}>
+                      {session.description}
+                    </Text>
+                  </View>
+                ) : (
+                <Text style={styles.sessionButtonText}>
+                  {formatDate(session.date)} - {session.type.charAt(0).toUpperCase() + session.type.slice(1)}
+                </Text>
+                )
+              }
             </TouchableOpacity>
           ))}
           
@@ -278,34 +297,39 @@ export default function JournalIndex() {
                 <Text style={styles.inputLabel}>Date Range:</Text>
 
                 {/* Start Date */}
-                <Button
+                {/* <Button
                   title={startDate ? startDate.toDateString() : "Select Start Date"}
                   onPress={() => setShowStartPicker(!showStartPicker)}
-                />
-                {showStartPicker && (
+                /> */}
+                {/* {showStartPicker && ( */}
+                <View style={styles.datePicker}>
                   <DateTimePicker
-                    value={startDate || today}
+                    //style={{backgroundColor: 'rgba(0,0,0,0.5)', width: '80%'}}
+                    value={startDate || monthAgo}
                     mode="date"
-                    display={Platform.OS === "ios" ? "inline" : "default"}
+                    //display={Platform.OS === "ios" ? "inline" : "default"}
+                    display={Platform.OS === 'ios' ? 'default' : 'calendar'}
                     minimumDate={twoYearsAgo}
                     maximumDate={today}
                     onChange={(event, date) => {
-                      setShowStartPicker(false);
+                      //setShowStartPicker(false);
                       if (date) setStartDate(date);
                     }}
                   />
-                )}
+                </View>
+                {/* )} */}
 
                 {/* End Date */}
-                <Button
+                {/* <Button
                   title={endDate ? endDate.toDateString() : "Select End Date"}
                   onPress={() => setShowEndPicker(!showEndPicker)}
-                />
-                {showEndPicker && (
+                /> */}
+                {/* {showEndPicker && ( */}
+                <View style={styles.datePicker}>
                   <DateTimePicker
                     value={endDate || today}
                     mode="date"
-                    display={Platform.OS === "ios" ? "inline" : "default"}
+                    display={Platform.OS === "ios" ? "default" : "calendar"}
                     minimumDate={twoYearsAgo}
                     maximumDate={today}
                     onChange={(event, date) => {
@@ -313,7 +337,8 @@ export default function JournalIndex() {
                       if (date) setEndDate(date);
                     }}
                   />
-                )}
+                </View>
+                 {/* )} */}
               </View>
               
               {/* Action Buttons */}
@@ -359,7 +384,7 @@ export default function JournalIndex() {
                   value={selectedDate}
                   onChangeText={setSelectedDate}
                   placeholder="YYYY-MM-DD"
-                  keyboardType="numeric"
+                  keyboardType="numbers-and-punctuation"
                 />
               </View>
               
@@ -367,7 +392,7 @@ export default function JournalIndex() {
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Type:</Text>
                 <View style={styles.typeContainer}>
-                  {['training', 'game', 'other'].map((type) => (
+                  {['training', 'game', 'note', 'other'].map((type) => (
                     <TouchableOpacity
                       key={type}
                       style={[
@@ -385,6 +410,18 @@ export default function JournalIndex() {
                     </TouchableOpacity>
                   ))}
                 </View>
+              </View>
+
+              {/* Description */}
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Description (optional):</Text>
+                <TextInput
+                  style={styles.sessionDescription}
+                  value={sessionDescription}
+                  onChangeText={setSessionDescription}
+                  placeholder="e.g. UCL Bayern vs. PSG"
+                  keyboardType="default"
+                />
               </View>
               
               {/* Action Buttons */}
@@ -474,7 +511,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 16,
     color: '#666',
-    marginBottom: 30,
+    //marginBottom: 30,
   },
   noSessionsText: {
     textAlign: 'center',
@@ -525,6 +562,10 @@ const styles = StyleSheet.create({
     marginBottom: 5,
     color: '#555',
   },
+  datePicker: {
+    margin: 6,
+    alignSelf: 'center'
+  },
   dateInput: {
     borderWidth: 1,
     borderColor: '#ccc',
@@ -541,7 +582,7 @@ const styles = StyleSheet.create({
   },
   typeButton: {
     paddingVertical: 10,
-    paddingHorizontal: 20,
+    paddingHorizontal: 5,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: '#ccc',
@@ -613,5 +654,14 @@ const styles = StyleSheet.create({
     width: "100%",
     alignItems: 'center',
     justifyContent: "center",
+  },
+  sessionDescription: {
+    textAlign: 'center',
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 30,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
   }
 }); 

@@ -43,6 +43,7 @@ export default function HomeScreen() {
   const {width, height} = useWindowDimensions();
 
   const appState = useAppState();
+  console.log(flatListRef);
 
   useEffect(() => {
     if (appState === 'background') {
@@ -131,7 +132,7 @@ export default function HomeScreen() {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       console.log("Logged out");
-      router.replace('/');
+      router.replace('/?fromLogout=${true}');
     } catch (error: unknown) {
       if (error instanceof Error) {
         Alert.alert('Error', error.message);
