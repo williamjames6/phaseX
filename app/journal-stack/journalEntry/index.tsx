@@ -19,7 +19,6 @@ export default function JournalEntryIndex() {
   const [actions, setActions] = useState<Action[]>([]);
   const [nextId, setNextId] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [isNote, setIsNote] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const timeRegex = /\b\d{1,3}:\d{2}\b/;
 
@@ -163,7 +162,7 @@ export default function JournalEntryIndex() {
   const handleSketchAction = (action: Action) => {
     // Navigate to sketchpad for this action
     router.push({
-      pathname: '/journal/journalEntry/sketchpad/new',
+      pathname: '/journal-stack/journalEntry/sketchpad/new',
       params: {
         actionId: action.id.toString(), // Use local ID for navigation
         sessionId: sessionId as string,
@@ -346,7 +345,7 @@ export default function JournalEntryIndex() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff3e0',
+    backgroundColor: 'black',
   },
   scrollView: {
     flex: 1,
@@ -437,6 +436,8 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 8,
+    borderColor: 'yellow',
+    borderWidth: 1,
   },
   deleteButtonIcon: {
     width: 30,
@@ -450,7 +451,9 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#58BF02',
+    borderColor: 'yellow',
+    borderWidth: 1,
+    backgroundColor: '#000',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -463,7 +466,7 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   plusSign: {
-    color: 'white',
+    color: 'yellow',
     fontSize: 32,
     fontWeight: 'bold',
     lineHeight: 32,
@@ -483,7 +486,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#fff3e0',
+    backgroundColor: '#000',
   },
   deleteButton: {
     backgroundColor: '#D62C09',
@@ -504,7 +507,7 @@ const styles = StyleSheet.create({
   noteContainer: {
     display: "flex",
     alignItems: "center",
-    backgroundColor: '#fff3e0',
+    backgroundColor: 'black',
     height: height,
   },
   noteStyle: {
@@ -520,21 +523,3 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   }
 }); 
-
-// inputContainer: {
-//   //height: 36,
-//   width: width*.9,
-//   marginHorizontal: 0,
-//   paddingRight: 0,
-//   paddingLeft: 0,
-//   //position: 'relative',
-//   //alignSelf: 'stretch',
-//   borderWidth: 1,
-//   borderColor: '#ccc',
-//   borderRadius: 24,
-//   backgroundColor: 'white',
-//   display: 'flex',
-//   flexDirection: 'column',
-//   alignItems: 'center',
-//   justifyContent: 'space-between'
-// },

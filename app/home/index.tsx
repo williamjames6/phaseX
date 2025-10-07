@@ -1,49 +1,30 @@
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
-import { Link, router } from 'expo-router';
+import { router } from 'expo-router';
 import { OpenAI } from 'openai';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
-import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Button, Dimensions, FlatList, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Alert, Dimensions, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import useAppState from 'react-native-useappstate';
-import { supabase } from '../lib/supabase';
-
+import SidebarModal from '../../components/SidebarModal';
+import { useHeaderWithMenu } from '../../hooks/useHeaderWithMenu';
+import { supabase } from '../../lib/supabase';
 interface InputItem {
   role: string;
   content: string;
 }
-
 const { width } = Dimensions.get('window');
 const client = new OpenAI({
   apiKey: Constants.expoConfig?.extra?.openaiApiKey,
   dangerouslyAllowBrowser: true // Required for Expo/React Native
 });
 
-const modules = [
-  { id: 'main', title: 'Main Dashboard', color: '#f0f0f0' },
-  { id: 'nutrition', title: 'Nutrition', color: '#e3f2fd' },
-  { id: 'physical', title: 'Physical', color: '#f3e5f5' },
-  { id: 'video', title: 'Video', color: '#e8f5e9' },
-  { id: 'journal', title: 'Journal', color: '#fff3e0' },
-];
-
-// Create cyclical data by adding the last item to the start and first item to the end
-const cyclicalModules = [
-  modules[modules.length - 1],
-  ...modules,
-  modules[0]
-];
-
 export default function HomeScreen() {
-  const flatListRef = useRef<FlatList<any>>(null);
-  const [currentIndex, setCurrentIndex] = useState(1);
   const [query, setQuery] = useState('');
   const [response, setResponse] = useState('');
   const [chatHistory, setChatHistory] = useState<string[]>([]);
-  const {width, height} = useWindowDimensions();
-
+  const [isSidebarVisible, setIsSidebarVisible] = useState(false);
   const appState = useAppState();
-  console.log(flatListRef);
 
   useEffect(() => {
     if (appState === 'background') {
@@ -127,102 +108,53 @@ export default function HomeScreen() {
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      console.log("Logged out");
-      router.replace('/?fromLogout=${true}');
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        Alert.alert('Error', error.message);
-      } else {
-        Alert.alert('Error', 'An unknown error occurred');
-      }
-    }
+  const toggleSidebar = () => {
+    setIsSidebarVisible(!isSidebarVisible);
   };
 
-  const handleScroll = (event: any) => {
-    const contentOffset = event.nativeEvent.contentOffset.x;
-    const index = Math.round(contentOffset / width);
-    setCurrentIndex(index);
-  };
-
-  const handleMomentumScrollEnd = () => {
-    // If we're at the first item (clone), jump to the real first item
-    if (currentIndex === 0) {
-      flatListRef.current?.scrollToIndex({ index: modules.length, animated: false });
-      setCurrentIndex(modules.length);
-    }
-    // If we're at the last item (clone), jump to the real last item
-    else if (currentIndex === modules.length + 1) {
-      flatListRef.current?.scrollToIndex({ index: 1, animated: false });
-      setCurrentIndex(1);
-    }
-  };
-
-  const renderModule = ({ item }: { item: typeof modules[0] }) => (
-      <View style={[styles.moduleContainer, { backgroundColor: item.color }]}>
-        {item.id === 'main' ? (
-          <View style={styles.searchContainer}>
-            <ScrollView style={styles.chatContainer}>
-              {chatHistory.map((message, index) => (
-                <Text key={index} style={styles.chatMessage}>{message}</Text>
-              ))}
-            </ScrollView>
-            <KeyboardAvoidingView 
-              behavior={Platform.OS === "ios" ? "padding" : undefined}
-              //keyboardVerticalOffset={5} // tweak this to match your header height
-            >
-              <View style={styles.inputContainer}>
-                <TextInput
-                  placeholder="How do you want to get better today?"
-                  value={query}
-                  onChangeText={setQuery}
-                  autoCapitalize="none"
-                  multiline={true}
-                  scrollEnabled={false}
-                  style={styles.textInput}
-                  onSubmitEditing={handleSearch}
-                />
-                <TouchableOpacity
-                  onPress={handleSearch}
-                  activeOpacity={0.8}
-                  style={styles.sendButton}
-                >
-                  <Ionicons name="arrow-up" size={18} color="#ffffff" />
-                </TouchableOpacity>
-              </View>
-            </KeyboardAvoidingView>
-            <Button title="Logout" onPress={handleLogout} />
-          </View>
-        ) : (
-          <Link href={item.id} style={styles.moduleTitle}>{item.title} </Link>
-        )}
-      </View>
-  );
+  useHeaderWithMenu({
+    title: 'phaseX',
+    onMenuPress: toggleSidebar,
+  });
 
   return (
     <View style={styles.container}>
-      <FlatList
-        ref={flatListRef}
-        data={cyclicalModules}
-        renderItem={renderModule}
-        keyExtractor={(item, index) => `${item.id}-${index}`}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        snapToInterval={width}
-        decelerationRate="fast"
-        onScroll={handleScroll}
-        onMomentumScrollEnd={handleMomentumScrollEnd}
-        initialScrollIndex={1}
-        getItemLayout={(data, index) => ({
-          length: width,
-          offset: width * index,
-          index,
-        })}
-      />
+
+      {/* Main Content */}
+      <View style={[styles.moduleContainer, { backgroundColor: "black" }]}>
+        <View style={styles.searchContainer}>
+          <ScrollView style={styles.chatContainer}>
+            {chatHistory.map((message, index) => (
+              <Text key={index} style={styles.chatMessage}>{message}</Text>
+            ))}
+          </ScrollView>
+          <KeyboardAvoidingView 
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+          >
+            <View style={styles.inputContainer}>
+              <TextInput
+                placeholder="How do you want to get better today?"
+                value={query}
+                onChangeText={setQuery}
+                autoCapitalize="none"
+                multiline={true}
+                scrollEnabled={false}
+                style={styles.textInput}
+                onSubmitEditing={handleSearch}
+              />
+              <TouchableOpacity
+                onPress={handleSearch}
+                activeOpacity={0.8}
+                style={styles.sendButton}
+              >
+                <Ionicons name="arrow-up" size={18} color="#ffffff" />
+              </TouchableOpacity>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </View>
+
+      <SidebarModal visible={isSidebarVisible} onClose={() => setIsSidebarVisible(false)} />
     </View>
   );
 }
@@ -230,6 +162,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#000',
   },
   moduleContainer: {
     width: width,
@@ -312,5 +245,20 @@ const styles = StyleSheet.create({
     //alignSelf: 'flex-end',
     // paddingRight: 5,
     // paddingBottom: 5,
-  }
+  },
+  sidebarButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  sidebarButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
 }); 

@@ -7,7 +7,6 @@ export default function PhysicalLayout() {
       <Stack.Screen
         name="index"
         options={{
-          title: 'Physical',
           headerShown: true,
         }}
       />

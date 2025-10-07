@@ -7,14 +7,7 @@ export default function JournalLayout() {
       <Stack.Screen
         name="index"
         options={{
-          title: 'Journal',
-          headerStyle: {
-            backgroundColor: '#aff3e0',
-          },
-          headerTintColor: '#000',
-          headerTitleStyle: {
-            fontWeight: 'bold',
-          },
+          headerShown: true,
         }}
       />
       <Stack.Screen
@@ -22,9 +15,9 @@ export default function JournalLayout() {
         options={{
           title: 'Journal Entry',
           headerStyle: {
-            backgroundColor: '#fff3e0',
+            backgroundColor: '#000',
           },
-          headerTintColor: '#000',
+          headerTintColor: '#ffffff',
           headerTitleStyle: {
             fontWeight: 'bold',
           },

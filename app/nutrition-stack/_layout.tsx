@@ -1,5 +1,5 @@
-import React from 'react';
 import { Stack } from 'expo-router';
+import React from 'react';
 
 export default function NutritionLayout() {
   return (
@@ -7,7 +7,6 @@ export default function NutritionLayout() {
       <Stack.Screen
         name="index"
         options={{
-          title: 'Nutrition',
           headerShown: true,
         }}
       />

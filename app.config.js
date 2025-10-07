@@ -41,11 +41,6 @@ export default {
     scheme: "phasex",
     plugins: [
       [
-        // "expo-secure-store",
-        // {
-        //   "configureAndroidBackup": false,
-        //   "faceIDPermission": "Allow $(PRODUCT_NAME) to access your Face ID biometric data."
-        // },
         "expo-local-authentication",
         {
           "faceIDPermission": "Allow phaseX to use Face ID."

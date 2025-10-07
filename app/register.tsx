@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { View, TextInput, Button, StyleSheet, Alert, Text, TouchableOpacity } from 'react-native';
-import { supabase } from '../lib/supabase';
 import { router } from 'expo-router';
+import React, { useState } from 'react';
+import { Alert, Button, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 export default function RegisterScreen() {
   const [email, setEmail] = useState('');
@@ -24,7 +24,7 @@ export default function RegisterScreen() {
       
       Alert.alert('Success', 'Registration successful! Please check your email to verify your account.');
       router.replace('/');
-    } catch (error) {
+    } catch (error: any) {
       Alert.alert('Error', error.message);
     }
   };

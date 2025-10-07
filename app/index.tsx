@@ -1,52 +1,38 @@
 import * as LocalAuthentication from 'expo-local-authentication';
 import { router } from 'expo-router';
-import { useLocalSearchParams } from 'expo-router/build/hooks';
 import * as SecureStore from 'expo-secure-store';
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, Dimensions, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import useAppState from 'react-native-useappstate';
+import { Alert, Animated, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../lib/supabase';
-
-const { width, height } = Dimensions.get('window');
 
 export default function LoginScreen() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  //const [authenticated, setAuthenticated] = useState(false);
-  const [session, setSession] = useState(false);
-  const [showLogin, setShowLogin] = useState(false);
-  const {fromLogout} = useLocalSearchParams<{ fromLogout?: string }>();
   
   // Animation values
   const loginOpacity = useRef(new Animated.Value(0)).current;
   const loginTranslateY = useRef(new Animated.Value(50)).current;
 
-  // Start animation sequence on component mount
+  // Start animation sequence and auto faceID login on component mount
   useEffect(() => {
     const startAnimation = () => {
-      // Show login elements immediately with animation
-      Animated.parallel([
-        Animated.timing(loginOpacity, {
-          toValue: 1,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-        Animated.timing(loginTranslateY, {
-          toValue: 0,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        setShowLogin(true);
+      return new Promise((resolve) => {
+        Animated.parallel([
+          Animated.timing(loginOpacity, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(loginTranslateY, {
+            toValue: 0,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          resolve(void 0); // ✅ resolves when animation finishes
+        });
       });
     };
-
-    startAnimation();
-  }, []);
-
-  const appState = useAppState();
-  useEffect(() => {
-    console.log(session);
     const fetchSession = async () => {
       const {data, error} = await supabase.auth.getSession();
       if (data?.session) {
@@ -54,29 +40,20 @@ export default function LoginScreen() {
         handleFaceID();
         return;
       } else {
-        console.log("Either session is inactive or error thrown");
-        Alert.alert("Please enter username and password to activate session");
+        console.log("session not active");
+        return;
       }
     };
 
-    if (appState === "active") {
-      console.log("active");
-      fetchSession();
-    };
-
-    if (appState === "inactive" || "null") {
-      console.log("null / inactive")
-      return;
-    };
-
-    if (fromLogout === "true") {
-      return;
+    const start = async () => {
+      await startAnimation();
+      await fetchSession();
     }
-  }, [appState]);
+    start();
+  }, []);
 
   const handleFaceID = async () => {
     try {
-      console.log("heard");
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage: "Login with Face ID",
         fallbackLabel: "Enter Passcode", // iOS fallback
@@ -86,14 +63,11 @@ export default function LoginScreen() {
       if (error) {
         console.log(error);
         Alert.alert("Please enter username and password to activate session");
-        setSession(false);
         return;
       };
       if (result && data?.session?.refresh_token && data?.session?.access_token) {
         await SecureStore.setItemAsync('refresh_token', data.session.refresh_token);
         await SecureStore.setItemAsync('access_token', data.session.access_token);
-        //console.log("TOKENS from FaceID login: ",data.session.refresh_token, data.session.access_token);
-        setSession(true);
         router.replace('/home');
         return;
       };
@@ -119,8 +93,6 @@ export default function LoginScreen() {
       console.log("Tokens from normal login: ", data.session.refresh_token, data.session.access_token);
       await SecureStore.setItemAsync('refresh_token', data.session.refresh_token);
       await SecureStore.setItemAsync('access_token', data.session.access_token);
-      setSession(true);
-
       if (error) throw error;
       
       // Navigate to home screen after successful login

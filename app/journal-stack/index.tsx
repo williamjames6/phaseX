@@ -3,9 +3,11 @@ import { useNavigation } from "@react-navigation/native";
 import { File, Paths } from 'expo-file-system';
 import { router, useFocusEffect } from 'expo-router';
 import * as Sharing from 'expo-sharing';
-import React, { useCallback, useLayoutEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Alert, Image, Keyboard, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { convertToCSV } from "../../assets/helpers/json2SCV";
+import SidebarModal from '../../components/SidebarModal';
+import { useHeaderWithMenu } from '../../hooks/useHeaderWithMenu';
 import { supabase } from '../../lib/supabase';
 
 interface Session {
@@ -22,6 +24,7 @@ export default function JournalIndex() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [offset, setOffset] = useState(0);
+  const [isSidebarVisible, setIsSidebarVisible] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -39,18 +42,18 @@ export default function JournalIndex() {
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
 
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerRight: () => (
-        <TouchableOpacity onPress={() => setShowDownloadModal(true)}>
-          <Image
-            source={require('../../assets/images/download.png')}
-            style={{height: 30, width: 30}}
-          />
-        </TouchableOpacity>
-      ),
-    });
-  }, [navigation]);
+  useHeaderWithMenu({
+    title: 'Journal',
+    onMenuPress: () => setIsSidebarVisible(true),
+    headerRight: () => (
+      <TouchableOpacity onPress={() => setShowDownloadModal(true)}>
+        <Image
+          source={require('../../assets/images/download.png')}
+          style={{height: 25, width: 25, tintColor: 'white'}}
+        />
+      </TouchableOpacity>
+    ),
+  });
 
   const downloadMonthlyActions = async (start: Date | null, end: Date | null) => {
 
@@ -190,7 +193,7 @@ export default function JournalIndex() {
 
       // Navigate to journal entry with the new session ID
       if (data && data[0]) {
-        router.push(`/journal/journalEntry?sessionId=${data[0].id}&sessionDate=${selectedDate}&sessionType=${selectedType}`);
+        router.push(`/journal-stack/journalEntry?sessionId=${data[0].id}&sessionDate=${selectedDate}&sessionType=${selectedType}`);
       }
       
       // Reset modal state and reload sessions
@@ -208,7 +211,7 @@ export default function JournalIndex() {
   const handleSessionPress = async (session: Session) => {
     try {
       // Navigate to journal entry with the existing session ID
-      router.push(`/journal/journalEntry?sessionId=${session.id}&sessionDate=${session.date}&sessionType=${session.type}`);
+      router.push(`/journal-stack/journalEntry?sessionId=${session.id}&sessionDate=${session.date}&sessionType=${session.type}`);
     } catch (error) {
       console.error('Error navigating to session:', error);
       Alert.alert('Error', 'Failed to open session');
@@ -227,8 +230,95 @@ export default function JournalIndex() {
     });
   };
 
+  const handleDeleteSession = async (sessionId: number) => {
+    if (!sessionId) {
+      Alert.alert('Error', 'No session ID found');
+      return;
+    }
+
+    Alert.alert(
+      'Delete Session',
+      'Are you sure you want to delete this session? This will permanently remove the session, all its actions, and any associated sketches.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // First, get all actions for this session to find their IDs
+              const { data: actions, error: fetchActionsError } = await supabase
+                .from('Actions')
+                .select('sketch_id')
+                .eq('session_id', sessionId);
+
+              if (fetchActionsError) {
+                console.error('Error fetching actions:', fetchActionsError);
+                Alert.alert('Error', 'Failed to fetch actions');
+                return;
+              }
+
+              if (actions && actions.length > 0) {
+                const sketchIds = actions.map(action => action.sketch_id);
+
+                // Delete tactical sketches that reference these actions
+                const { error: sketchesError } = await supabase
+                  .from('TacticalSketches')
+                  .delete()
+                  .in('id', sketchIds);
+
+                if (sketchesError) {
+                  console.error('Error deleting sketches:', sketchesError);
+                  Alert.alert('Error', 'Failed to delete sketches');
+                  return;
+                }
+
+                // Then delete all actions for this session
+                const { error: actionsError } = await supabase
+                  .from('Actions')
+                  .delete()
+                  .eq('session_id', sessionId);
+
+                if (actionsError) {
+                  console.error('Error deleting actions:', actionsError);
+                  Alert.alert('Error', 'Failed to delete actions');
+                  return;
+                }
+              }
+
+              // Finally delete the session
+              const { error: sessionError } = await supabase
+                .from('Sessions')
+                .delete()
+                .eq('id', sessionId);
+
+              if (sessionError) {
+                console.error('Error deleting session:', sessionError);
+                Alert.alert('Error', 'Failed to delete session');
+                return;
+              }
+
+              console.log('Session, actions, and sketches deleted successfully');
+              Alert.alert('Success', 'Session deleted successfully');
+              
+              // Refresh the sessions list
+              loadRecentSessions();
+            } catch (error) {
+              console.error('Error deleting session:', error);
+              Alert.alert('Error', 'Failed to delete session');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+    <View style={styles.container}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
 
       <View style={styles.addContainer}>           
         <TouchableOpacity style={styles.addButton} onPress={handleNewSession}>
@@ -245,6 +335,7 @@ export default function JournalIndex() {
               key={session.id} 
               style={styles.sessionButton}
               onPress={() => handleSessionPress(session)}
+              onLongPress={() => handleDeleteSession(session.id)}
             >
               {
                 session.description !== null ? (
@@ -447,14 +538,19 @@ export default function JournalIndex() {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
-    </ScrollView>
+      </ScrollView>
+      <SidebarModal visible={isSidebarVisible} onClose={() => setIsSidebarVisible(false)} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff3e0',
+    backgroundColor: 'black',
+  },
+  scrollView: {
+    flex: 1,
     padding: 20,
   },
   scrollContent: {
