@@ -329,11 +329,7 @@ export default function JournalEntryIndex() {
       {/* </KeyboardAwareScrollView> */}
       
       
-      <View style={styles.bottomButtonsContainer}>
-        <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteSession}>
-          <Text style={styles.deleteButtonText}>Delete Session</Text>
-        </TouchableOpacity>
-        
+      <View style={styles.bottomButtonsContainer}>       
         <TouchableOpacity style={styles.addButton} onPress={handleAddAction}>
           <Text style={styles.plusSign}>+</Text>
         </TouchableOpacity>
