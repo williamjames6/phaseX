@@ -1,6 +1,7 @@
+import { Picker } from '@react-native-picker/picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Dimensions, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Dimensions, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '../../../lib/supabase';
@@ -13,6 +14,8 @@ interface Action {
   sketch_id: string; // Store sketch ID that needs to be linked when action is submitted
 }
 const { width, height } = Dimensions.get('window');
+const MINUTE_OPTIONS = Array.from({ length: 301 }, (_, index) => index);
+const SECOND_OPTIONS = Array.from({ length: 12 }, (_, index) => index * 5);
 
 export default function JournalEntryIndex() {
   const { sessionId, sessionDate, sessionType } = useLocalSearchParams();
@@ -21,6 +24,10 @@ export default function JournalEntryIndex() {
   const [loading, setLoading] = useState(true);
   const scrollViewRef = useRef<ScrollView>(null);
   const timeRegex = /\b\d{1,3}:\d{2}\b/;
+  const [isPickerVisible, setPickerVisible] = useState(false);
+  const [pickerActionId, setPickerActionId] = useState<number | null>(null);
+  const [selectedMinutes, setSelectedMinutes] = useState(0);
+  const [selectedSeconds, setSelectedSeconds] = useState(0);
 
 
   // Load existing actions for this session
@@ -186,62 +193,55 @@ export default function JournalEntryIndex() {
     ));
   };
 
-  const handleDeleteSession = async () => {
-    if (!sessionId) {
-      Alert.alert('Error', 'No session ID found');
+  const openPickerForAction = (action: Action) => {
+    let minutes = 0;
+    let seconds = 0;
+
+    if (timeRegex.test(action.timestamp)) {
+      const [minutePart, secondPart] = action.timestamp.split(':');
+      const parsedMinutes = parseInt(minutePart, 10);
+      const parsedSeconds = parseInt(secondPart, 10);
+
+      if (!Number.isNaN(parsedMinutes)) {
+        minutes = Math.min(300, Math.max(0, parsedMinutes));
+      }
+
+      if (!Number.isNaN(parsedSeconds)) {
+        const roundedSeconds = Math.min(55, Math.round(parsedSeconds / 5) * 5);
+        seconds = SECOND_OPTIONS.includes(roundedSeconds) ? roundedSeconds : 0;
+      }
+    }
+
+    setSelectedMinutes(minutes);
+    setSelectedSeconds(seconds);
+    setPickerActionId(action.id);
+    setPickerVisible(true);
+  };
+
+  const closePicker = () => {
+    setPickerVisible(false);
+    setPickerActionId(null);
+  };
+
+  const handlePickerConfirm = () => {
+    if (pickerActionId == null) {
+      closePicker();
       return;
     }
 
-    Alert.alert(
-      'Delete Session',
-      'Are you sure you want to delete this session? This will permanently remove the session and all its actions.',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // First delete all actions for this session
-              const { error: actionsError } = await supabase
-                .from('Actions')
-                .delete()
-                .eq('session_id', sessionId);
+    const targetAction = actions.find(action => action.id === pickerActionId);
+    if (!targetAction) {
+      closePicker();
+      return;
+    }
 
-              if (actionsError) {
-                console.error('Error deleting actions:', actionsError);
-                Alert.alert('Error', 'Failed to delete actions');
-                return;
-              }
+    const formattedSeconds = selectedSeconds.toString().padStart(2, '0');
+    const formattedTimestamp = `${selectedMinutes}:${formattedSeconds}`;
+    const updatedAction = { ...targetAction, timestamp: formattedTimestamp };
 
-              // Then delete the session
-              const { error: sessionError } = await supabase
-                .from('Sessions')
-                .delete()
-                .eq('id', sessionId);
-
-              if (sessionError) {
-                console.error('Error deleting session:', sessionError);
-                Alert.alert('Error', 'Failed to delete session');
-                return;
-              }
-
-              console.log('Session and actions deleted successfully');
-              Alert.alert('Success', 'Session deleted successfully');
-              
-              // Navigate back to journal index
-              router.back();
-            } catch (error) {
-              console.error('Error deleting session:', error);
-              Alert.alert('Error', 'Failed to delete session');
-            }
-          },
-        },
-      ]
-    );
+    updateAction(targetAction.id, 'timestamp', formattedTimestamp);
+    handleSubmitAction(updatedAction, true);
+    closePicker();
   };
 
   if (loading) {
@@ -283,14 +283,14 @@ export default function JournalEntryIndex() {
         {actions.map((action) => (
           <View key={action.id} style={styles.actionContainer}>
             <View style={styles.inputsRow}>
-              <TextInput
+              <TouchableOpacity
                 style={styles.timestampInput}
-                placeholder="00:00"
-                value={action.timestamp}
-                onChangeText={(value) => updateAction(action.id, 'timestamp', value)}
-                placeholderTextColor="#999"
-                onBlur={() => handleSubmitAction(action, true)}
-              />
+                onPress={() => openPickerForAction(action)}
+              >
+                <Text style={[styles.timestampText, !action.timestamp && styles.timestampPlaceholder]}>
+                  {action.timestamp || '00:00'}
+                </Text>
+              </TouchableOpacity>
               <TextInput
                 style={styles.descriptionInput}
                 placeholder="Description of action..."
@@ -334,6 +334,58 @@ export default function JournalEntryIndex() {
           <Text style={styles.plusSign}>+</Text>
         </TouchableOpacity>
       </View>
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={isPickerVisible}
+        onRequestClose={closePicker}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity onPress={closePicker}>
+                <Text style={styles.modalHeaderText}>Cancel</Text>
+              </TouchableOpacity>
+              <Text style={styles.modalTitle}>Select Time</Text>
+              <TouchableOpacity onPress={handlePickerConfirm}>
+                <Text style={styles.modalHeaderText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.pickersRow}>
+              <View style={styles.pickerColumn}>
+                <Text style={styles.pickerLabel}>Minutes</Text>
+                <Picker
+                  selectedValue={selectedMinutes}
+                  onValueChange={(value) => setSelectedMinutes(value)}
+                  style={styles.picker}
+                  itemStyle={styles.pickerItem}
+                >
+                  {MINUTE_OPTIONS.map(option => (
+                    <Picker.Item key={option} label={`${option}`} value={option} />
+                  ))}
+                </Picker>
+              </View>
+              <View style={styles.pickerColumn}>
+                <Text style={styles.pickerLabel}>Seconds</Text>
+                <Picker
+                  selectedValue={selectedSeconds}
+                  onValueChange={(value) => setSelectedSeconds(value)}
+                  style={styles.picker}
+                  itemStyle={styles.pickerItem}
+                >
+                  {SECOND_OPTIONS.map(option => (
+                    <Picker.Item
+                      key={option}
+                      label={`${option.toString().padStart(2, '0')}`}
+                      value={option}
+                    />
+                  ))}
+                </Picker>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -371,6 +423,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     backgroundColor: 'white',
     fontSize: 16,
+    justifyContent: 'center',
+  },
+  timestampText: {
+    color: 'black',
+    fontSize: 16,
+  },
+  timestampPlaceholder: {
+    color: '#999',
   },
   descriptionInput: {
     flex: 4,
@@ -517,5 +577,56 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     fontSize: 16,
     textAlignVertical: 'top',
-  }
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#1c1c1e',
+    borderRadius: 16,
+    width: '90%',
+    maxWidth: 360,
+    paddingBottom: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  modalHeaderText: {
+    color: '#0a84ff',
+    fontSize: 16,
+  },
+  modalTitle: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  pickersRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-evenly',
+    paddingHorizontal: 10,
+    paddingBottom: 20,
+  },
+  pickerColumn: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  pickerLabel: {
+    color: '#999',
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  picker: {
+    width: '100%',
+  },
+  pickerItem: {
+    color: 'white',
+    fontSize: 18,
+  },
 }); 

@@ -3,5 +3,7 @@
     "source.fixAll": "explicit",
     "source.organizeImports": "explicit",
     "source.sortMembers": "explicit"
-  }
+  },
+  "workbench.activityBar.orientation": "vertical",
+  "workbench.colorTheme": "Cursor Dark High Contrast"
 }

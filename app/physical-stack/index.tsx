@@ -34,11 +34,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: 'black',
     gap: 16,
   },
   button: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#89898a',
     padding: 22.5,
     borderRadius: 8,
     width: '100%',

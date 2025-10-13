@@ -1,7 +1,7 @@
 import { useFocusEffect } from '@react-navigation/native';
-import { router, useLocalSearchParams } from 'expo-router';
-import React, { useCallback, useState } from 'react';
-import { Dimensions, GestureResponderEvent, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, AppStateStatus, Dimensions, GestureResponderEvent, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { supabase } from '../../../../lib/supabase';
 
@@ -16,57 +16,114 @@ interface Sketch {
 export default function NewSketchScreen() {
   const params = useLocalSearchParams();
   const [paths, setPaths] = useState<string[]>([]);
-  const [currentPath, setCurrentPath] = useState('');
-  const [currentPoints, setCurrentPoints] = useState<{x:number;y:number}[]>([]);
-  const [mode, setMode] = useState<'x'|'o'|'solid'|'dashed'>('solid');
+  const [startPoint, setStartPoint] = useState<{x:number;y:number} | null>(null);
+  const [mode, setMode] = useState<'x'|'o'|'solid'|'dashed'|'x-circle'|'o-filled'|'solid-grey'|'dashed-grey'>('solid');
   const [strokeCounts, setStrokeCounts] = useState<number[]>([]);
   const actionId = params.actionId as string;
   const sessionId = params.sessionId as string;
+  const appState = useRef(AppState.currentState);
+  const hasUnsavedChanges = useRef(false);
+  const pathsRef = useRef<string[]>([]);
 
+
+  // Auto-save function - using refs to avoid infinite loops
+  const handleAutoSave = useCallback(async () => {
+    if (!actionId || !sessionId || !hasUnsavedChanges.current) {
+      return;
+    }
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        console.log('User not logged in, skipping auto-save');
+        return;
+      }
+
+      // Get current paths from ref to avoid dependency issues
+      const currentPaths = pathsRef.current;
+      if (currentPaths.length === 0) {
+        return;
+      }
+
+      await supabase
+        .from('TacticalSketches')
+        .upsert([
+          {
+            user_id: user.id,
+            paths: currentPaths,
+            id: params.sketchId
+          }
+        ], { onConflict: "id" });
+
+      hasUnsavedChanges.current = false;
+      console.log('Sketch auto-saved successfully');
+    } catch (error: unknown) {
+      console.error('Error in auto-save:', error);
+    }
+  }, [actionId, sessionId, params.sketchId]); // Stable dependencies only
+
+  // App state change listener
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+        // App has come to the foreground
+        console.log('App has come to the foreground');
+      } else if (appState.current === 'active' && nextAppState.match(/inactive|background/)) {
+        // App has gone to the background
+        console.log('App has gone to the background, auto-saving...');
+        handleAutoSave();
+      }
+      appState.current = nextAppState;
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription?.remove();
+  }, [handleAutoSave]);
 
   useFocusEffect(
-    useCallback( () =>
-      {
-        console.log(new Date());
-        console.log(params.sketchId);
-        const handleRender = async () => {
-          try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) {
-              alert('You must be logged in to save sketches');
-              return;
-            }
-            const { data: sketchData, error: sketchError } = await supabase
-              .from('TacticalSketches')
-              .select('paths')
-              .eq('id', params.sketchId)
-              .maybeSingle();
-
-            if (sketchError) {
-              console.log(sketchData);
-              throw sketchError;
-            }
-            if (sketchData) {
-              setPaths(sketchData.paths);
-            }
+    useCallback(() => {
+      const handleRender = async () => {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) {
+            alert('You must be logged in to save sketches');
+            return;
           }
-          catch (error: unknown) {
-            console.error('Error in handleSave:', error);
-            if (error instanceof Error) {
-              alert('Error saving sketch: ' + error.message);
-            } else {
-              alert('An unknown error occurred while saving the sketch');
-            }
+          const { data: sketchData, error: sketchError } = await supabase
+            .from('TacticalSketches')
+            .select('paths')
+            .eq('id', params.sketchId)
+            .maybeSingle();
+
+          if (sketchError) {
+            console.log(sketchData);
+            throw sketchError;
           }
-        };
+          if (sketchData) {
+            setPaths(sketchData.paths);
+            pathsRef.current = sketchData.paths;
+            console.log(sketchData.paths);
+          }
+        }
+        catch (error: unknown) {
+          console.error('Error in handleRender:', error);
+          if (error instanceof Error) {
+            alert('Error loading sketch: ' + error.message);
+          } else {
+            alert('An unknown error occurred while loading the sketch');
+          }
+        }
+      };
 
-        handleRender();
+      handleRender();
 
-        return () => {
-          // Do something when the screen is unfocused
-          // Useful for cleanup functions
-        };
-      }, [])
+      return () => {
+        // Auto-save when screen loses focus
+        console.log('Screen losing focus, auto-saving...');
+        handleAutoSave();
+      };
+    }, [handleAutoSave])
   );
 
   // Debug: Log the received parameters
@@ -77,46 +134,74 @@ export default function NewSketchScreen() {
     const { locationX, locationY } = event.nativeEvent;
     if (mode === 'x') {
       // Two perpendicular 10px lines intersecting at tap point (plus sign)
-      const half = 5;
-      const horiz = `M ${locationX - half} ${locationY} L ${locationX + half} ${locationY}`;
-      const vert = `M ${locationX} ${locationY - half} L ${locationX} ${locationY + half}`;
-      setPaths(prev => [...prev, horiz, vert]);
+      const half = 4*Math.sqrt(2);
+      const horiz = `M ${locationX - half} ${locationY - half} L ${locationX + half} ${locationY + half}`;
+      const vert = `M ${locationX - half} ${locationY + half} L ${locationX + half} ${locationY - half}`;
+      setPaths(prev => {
+        const newPaths = [...prev, horiz, vert];
+        pathsRef.current = newPaths;
+        return newPaths;
+      });
       setStrokeCounts(prev => [...prev, 2]);
+      hasUnsavedChanges.current = true;
+      return;
+    }
+    if (mode === 'x-circle') {
+      // X with circle around it
+      const half = 4*Math.sqrt(2);
+      const r = 8;
+      const horiz = `M ${locationX - half} ${locationY - half} L ${locationX + half} ${locationY + half}`;
+      const vert = `M ${locationX - half} ${locationY + half} L ${locationX + half} ${locationY - half}`;
+      const circle = `M ${locationX + r} ${locationY} A ${r} ${r} 0 1 0 ${locationX - r} ${locationY} A ${r} ${r} 0 1 0 ${locationX + r} ${locationY}`;
+      setPaths(prev => {
+        const newPaths = [...prev, horiz, vert, circle];
+        pathsRef.current = newPaths;
+        return newPaths;
+      });
+      setStrokeCounts(prev => [...prev, 3]);
+      hasUnsavedChanges.current = true;
       return;
     }
     if (mode === 'o') {
-      // Circle of radius 5px centered at tap point (approximate with arc path)
-      const r = 5;
+      // Circle of radius 8px centered at tap point (approximate with arc path)
+      const r = 8;
       const circle = `M ${locationX + r} ${locationY} A ${r} ${r} 0 1 0 ${locationX - r} ${locationY} A ${r} ${r} 0 1 0 ${locationX + r} ${locationY}`;
-      setPaths(prev => [...prev, circle]);
+      setPaths(prev => {
+        const newPaths = [...prev, circle];
+        pathsRef.current = newPaths;
+        return newPaths;
+      });
       setStrokeCounts(prev => [...prev, 1]);
+      hasUnsavedChanges.current = true;
       return;
     }
-    // Start free draw for arrows
-    setCurrentPoints([{ x: locationX, y: locationY }]);
-    setCurrentPath(`M ${locationX} ${locationY}`);
+    if (mode === 'o-filled') {
+      // Filled circle of radius 8px centered at tap point
+      const r = 8;
+      const circle = `M ${locationX + r} ${locationY} A ${r} ${r} 0 1 0 ${locationX - r} ${locationY} A ${r} ${r} 0 1 0 ${locationX + r} ${locationY}`;
+      setPaths(prev => {
+        const newPaths = [...prev, circle];
+        pathsRef.current = newPaths;
+        return newPaths;
+      });
+      setStrokeCounts(prev => [...prev, 1]);
+      hasUnsavedChanges.current = true;
+      return;
+    }
+    // Start point for straight arrows (solid, dashed, solid-grey, dashed-grey)
+    setStartPoint({ x: locationX, y: locationY });
   };
 
-  const handleTouchMove = (event: GestureResponderEvent) => {
-    if (mode === 'x' || mode === 'o') return; // tap-only modes
+
+  const handleTouchEnd = (event: GestureResponderEvent) => {
+    if (!startPoint) return;
+
     const { locationX, locationY } = event.nativeEvent;
-    setCurrentPoints(prev => [...prev, { x: locationX, y: locationY }]);
-    setCurrentPath(prev => `${prev} L ${locationX} ${locationY}`);
-  };
+    const endPoint = { x: locationX, y: locationY };
 
-  const handleTouchEnd = () => {
-    if (!currentPath || currentPoints.length < 1) {
-      setCurrentPath('');
-      setCurrentPoints([]);
-      return;
-    }
-
-    const addArrowHeadSegments = (points: {x:number;y:number}[]) => {
-      if (points.length < 2) return [] as string[];
-      const p2 = points[points.length - 1];
-      const p1 = points[points.length - 2];
-      const dx = p2.x - p1.x;
-      const dy = p2.y - p1.y;
+    const addArrowHeadSegments = (start: {x:number;y:number}, end: {x:number;y:number}) => {
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
       const len = Math.hypot(dx, dy) || 1;
       const ux = dx / len;
       const uy = dy / len;
@@ -129,60 +214,72 @@ export default function NewSketchScreen() {
       const ry1 = (-ux * sin + -uy * cos);
       const rx2 = (-ux * cos - -uy * -sin);
       const ry2 = (-ux * -sin + -uy * cos);
-      const a1x = p2.x + rx1 * arrowLen;
-      const a1y = p2.y + ry1 * arrowLen;
-      const a2x = p2.x + rx2 * arrowLen;
-      const a2y = p2.y + ry2 * arrowLen;
-      const head1 = `M ${p2.x} ${p2.y} L ${a1x} ${a1y}`;
-      const head2 = `M ${p2.x} ${p2.y} L ${a2x} ${a2y}`;
+      const a1x = end.x + rx1 * arrowLen;
+      const a1y = end.y + ry1 * arrowLen;
+      const a2x = end.x + rx2 * arrowLen;
+      const a2y = end.y + ry2 * arrowLen;
+      const head1 = `M ${end.x} ${end.y} L ${a1x} ${a1y}`;
+      const head2 = `M ${end.x} ${end.y} L ${a2x} ${a2y}`;
       return [head1, head2];
     };
 
-    if (mode === 'solid') {
-      const heads = addArrowHeadSegments(currentPoints);
-      const toAdd = [currentPath, ...heads];
-      setPaths(prev => [...prev, ...toAdd]);
+    if (mode === 'solid' || mode === 'solid-grey') {
+      const line = `M ${startPoint.x} ${startPoint.y} L ${endPoint.x} ${endPoint.y}`;
+      const heads = addArrowHeadSegments(startPoint, endPoint);
+      const toAdd = [line, ...heads];
+      setPaths(prev => {
+        const newPaths = [...prev, ...toAdd];
+        pathsRef.current = newPaths;
+        return newPaths;
+      });
       setStrokeCounts(prev => [...prev, toAdd.length]);
-      setCurrentPath('');
-      setCurrentPoints([]);
+      setStartPoint(null);
+      hasUnsavedChanges.current = true;
       return;
     }
 
-    if (mode === 'dashed') {
-      // Convert the polyline into many short segments with gaps
+    if (mode === 'dashed' || mode === 'dashed-grey') {
+      // Convert the straight line into dashed segments
       const dash = 6;
       const gap = 4;
       const outSegments: string[] = [];
-      for (let i = 0; i < currentPoints.length - 1; i++) {
-        const p0 = currentPoints[i];
-        const p1 = currentPoints[i + 1];
-        const segDx = p1.x - p0.x;
-        const segDy = p1.y - p0.y;
-        const segLen = Math.hypot(segDx, segDy);
-        if (segLen === 0) continue;
-        const ux = segDx / segLen;
-        const uy = segDy / segLen;
-        let dist = 0;
-        let draw = true;
-        while (dist < segLen) {
-          const l = Math.min(draw ? dash : gap, segLen - dist);
-          if (draw) {
-            const sx = p0.x + ux * dist;
-            const sy = p0.y + uy * dist;
-            const ex = p0.x + ux * (dist + l);
-            const ey = p0.y + uy * (dist + l);
-            outSegments.push(`M ${sx} ${sy} L ${ex} ${ey}`);
-          }
-          dist += l;
-          draw = !draw;
-        }
+      
+      const dx = endPoint.x - startPoint.x;
+      const dy = endPoint.y - startPoint.y;
+      const totalLen = Math.hypot(dx, dy);
+      if (totalLen === 0) {
+        setStartPoint(null);
+        return;
       }
-      const heads = addArrowHeadSegments(currentPoints);
+      
+      const ux = dx / totalLen;
+      const uy = dy / totalLen;
+      let dist = 0;
+      let draw = true;
+      
+      while (dist < totalLen) {
+        const l = Math.min(draw ? dash : gap, totalLen - dist);
+        if (draw) {
+          const sx = startPoint.x + ux * dist;
+          const sy = startPoint.y + uy * dist;
+          const ex = startPoint.x + ux * (dist + l);
+          const ey = startPoint.y + uy * (dist + l);
+          outSegments.push(`M ${sx} ${sy} L ${ex} ${ey}`);
+        }
+        dist += l;
+        draw = !draw;
+      }
+      
+      const heads = addArrowHeadSegments(startPoint, endPoint);
       const toAdd = [...outSegments, ...heads];
-      setPaths(prev => [...prev, ...toAdd]);
+      setPaths(prev => {
+        const newPaths = [...prev, ...toAdd];
+        pathsRef.current = newPaths;
+        return newPaths;
+      });
       setStrokeCounts(prev => [...prev, toAdd.length]);
-      setCurrentPath('');
-      setCurrentPoints([]);
+      setStartPoint(null);
+      hasUnsavedChanges.current = true;
       return;
     }
   };
@@ -192,117 +289,93 @@ export default function NewSketchScreen() {
     const counts = [...strokeCounts];
     const last = counts.pop() as number;
     setStrokeCounts(counts);
-    setPaths(prev => prev.slice(0, Math.max(0, prev.length - last)));
-    setCurrentPath('');
-    setCurrentPoints([]);
+    setPaths(prev => {
+      const newPaths = prev.slice(0, Math.max(0, prev.length - last));
+      pathsRef.current = newPaths;
+      return newPaths;
+    });
+    setStartPoint(null);
+    hasUnsavedChanges.current = true;
   };
 
-  const handleSave = async () => {
-    if (!actionId || !sessionId) {
-      alert('Missing action or session information');
-      return;
-    }
-
-    if (paths.length === 0) {
-      alert('Please draw something before saving');
-      return;
-    }
-
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        alert('You must be logged in to save sketches');
-        return;
-      }
-      // 1. Create new row in TacticalSketches table
-      const { data: sketchData, error: sketchError } = await supabase
-        .from('TacticalSketches')
-        .upsert([
-          {
-            user_id: user.id,
-            paths: paths,
-            id: params.sketchId
-          }
-          ],
-          {onConflict: "id"}
-        )
-        .select()
-        .single();
-
-      if (sketchError) throw sketchError;
-      console.log('Sketch created successfully:', sketchData.id);
-
-      alert('Sketch saved successfully!');
-      
-      // Navigate back to the journal entry with the sketch ID
-      router.back();
-      // Note: The sketch ID will be stored in the action's pendingSketchId field
-      // when the user returns to the journal entry
-    } catch (error: unknown) {
-      console.error('Error in handleSave:', error);
-      if (error instanceof Error) {
-        alert('Error saving sketch: ' + error.message);
-      } else if (typeof(error)=="object" && error) {
-        alert("Did you enter a time stamp or description? No? You dumb slut. Do that first before saving a sketch.");
-      } else {
-        alert('An unknown error occurred while saving the sketch');
-      }
-    }
-  };
 
   return (
     <View style={styles.container}>
       <View style={styles.toolbar}>
-        <TouchableOpacity onPress={() => setMode('x')} style={[styles.toolButton, mode==='x' && styles.toolActive]}>
-          <Text style={styles.toolText}>x</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => setMode('o')} style={[styles.toolButton, mode==='o' && styles.toolActive]}>
-          <Text style={styles.toolText}>o</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => setMode('solid')} style={[styles.toolButton, mode==='solid' && styles.toolActive]}>
-          <Text style={styles.toolText}>solid →</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => setMode('dashed')} style={[styles.toolButton, mode==='dashed' && styles.toolActive]}>
-          <Text style={styles.toolText}>dashed →</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={handleUndo} style={[styles.toolButton, styles.undoButton]}>
-          <Text style={styles.toolText}>Undo</Text>
-        </TouchableOpacity>
+        {/* X Column */}
+        <View style={styles.toolColumn}>
+          <TouchableOpacity onPress={() => setMode('x')} style={[styles.toolButton, mode==='x' && styles.toolActive]}>
+            <Text style={styles.toolIcon}>✕</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setMode('x-circle')} style={[styles.toolButton, mode==='x-circle' && styles.toolActive]}>
+            <Text style={styles.toolIcon}>⨂</Text>
+          </TouchableOpacity>
+        </View>
+        
+        {/* Circle Column */}
+        <View style={styles.toolColumn}>
+          <TouchableOpacity onPress={() => setMode('o')} style={[styles.toolButton, mode==='o' && styles.toolActive]}>
+            <Text style={styles.toolIcon}>○</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setMode('o-filled')} style={[styles.toolButton, mode==='o-filled' && styles.toolActive]}>
+            <Text style={styles.toolIcon}>●</Text>
+          </TouchableOpacity>
+        </View>
+        
+        {/* Solid Arrow Column */}
+        <View style={styles.toolColumn}>
+          <TouchableOpacity onPress={() => setMode('solid')} style={[styles.toolButton, mode==='solid' && styles.toolActive]}>
+            <Text style={styles.toolIcon}>→</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setMode('solid-grey')} style={[styles.toolButton, mode==='solid-grey' && styles.toolActive]}>
+            <Text style={[styles.toolIcon, {color: '#acb3b9'}]}>→</Text>
+          </TouchableOpacity>
+        </View>
+        
+        {/* Dashed Arrow Column */}
+        <View style={styles.toolColumn}>
+          <TouchableOpacity onPress={() => setMode('dashed')} style={[styles.toolButton, mode==='dashed' && styles.toolActive]}>
+            <Text style={styles.toolIcon}>⇢</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setMode('dashed-grey')} style={[styles.toolButton, mode==='dashed-grey' && styles.toolActive]}>
+            <Text style={[styles.toolIcon, {color: '#acb3b9'}]}>⇢</Text>
+          </TouchableOpacity>
+        </View>
+        
+        {/* Undo Column */}
+        <View style={styles.toolColumn}>
+          <TouchableOpacity onPress={handleUndo} style={[styles.toolButton, styles.undoButton]}>
+            <Text style={styles.toolIcon}>↶</Text>
+          </TouchableOpacity>
+        </View>
       </View>
       <View style={styles.canvas}>
         <Svg
-          height={height * 0.6}
-          width={width}
+          height={height - 120} // Extend to bottom with padding
+          width={width - 40} // Account for container padding
           onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
         >
-          {paths.map((path, index) => (
-            <Path
-              key={index}
-              d={path}
-              stroke="black"
-              strokeWidth={2}
-              fill="none"
-            />
-          ))}
-          {currentPath ? (
-            <Path
-              d={currentPath}
-              stroke="black"
-              strokeWidth={2}
-              fill="none"
-            />
-          ) : null}
+          {paths.map((path, index) => {
+            // Determine color and fill based on the path index and mode
+            // This is a simplified approach - in a real app you'd want to store color info with each path
+            const isGrey = mode === 'solid-grey' || mode === 'dashed-grey';
+            const isFilled = mode === 'o-filled';
+            const strokeColor = isGrey ? '#acb3b9' : 'black';
+            const fillColor = isFilled ? 'black' : 'none';
+            
+            return (
+              <Path
+                key={index}
+                d={path}
+                stroke={strokeColor}
+                strokeWidth={2}
+                fill={fillColor}
+              />
+            );
+          })}
         </Svg>
       </View>
-      <TouchableOpacity 
-        style={styles.saveButton} 
-        onPress={handleSave}
-      >
-        <Text style={styles.saveButtonText}>Save Sketch</Text>
-      </TouchableOpacity>
     </View>
   );
 }
@@ -319,12 +392,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
+  toolColumn: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   toolButton: {
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
     backgroundColor: '#eee',
-    marginRight: 8,
+    marginBottom: 4,
   },
   toolActive: {
     backgroundColor: '#ffcc80',
@@ -333,24 +411,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  toolIcon: {
+    fontSize: 20,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
   undoButton: {
     backgroundColor: '#f8d7da',
   },
   canvas: {
     backgroundColor: 'white',
     borderRadius: 5,
-    marginBottom: 20,
-  },
-  saveButton: {
-    backgroundColor: '#ff9800',
-    padding: 15,
-    borderRadius: 5,
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  saveButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
+    flex: 1,
+    marginBottom: 10,
   },
 }); 

@@ -1,43 +1,146 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../../../lib/supabase';
 
 interface Exercise {
   id: string;
   exercise_name: string;
-  weight: number | null;
-  sets: number;
-  reps: number;
-  notes: string | null;
   superset_number: number;
+  exercise_number: number;
+  sets: {
+    reps: number | null;
+    weight: number | null;
+    time: number | null;
+  }[];
 }
 
 interface Session {
   id: string;
   session_date: string;
-  session_name: string | null;
-  notes: string | null;
+  data: any; // JSONB data for storing superset information
 }
 
 export default function GymSession() {
   const { id } = useLocalSearchParams();
   const [session, setSession] = useState<Session | null>(null);
-  const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [supersets, setSupersets] = useState<{ [key: number]: Exercise[] }>({});
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
-  const [sessionName, setSessionName] = useState('');
-  const [sessionNotes, setSessionNotes] = useState('');
   const [currentSuperset, setCurrentSuperset] = useState(1);
+  const [isNewSession, setIsNewSession] = useState(false);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const setsScrollViewRefs = useRef<{ [key: string]: ScrollView | null }>({});
 
   useEffect(() => {
     if (id) {
       loadSession();
     } else {
-      setEditing(true);
+      // New session - create empty superset
+      setIsNewSession(true);
+      setSupersets({
+        1: [createEmptyExercise(1)]
+      });
       setLoading(false);
     }
   }, [id]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const createEmptyExercise = (supersetNumber: number, exerciseNumber: number = 1): Exercise => ({
+    id: `temp-${Date.now()}-${Math.random()}`,
+    exercise_name: '',
+    superset_number: supersetNumber,
+    exercise_number: exerciseNumber,
+    sets: [
+      { reps: null, weight: null, time: null },
+      { reps: null, weight: null, time: null },
+      { reps: null, weight: null, time: null }
+    ]
+  });
+
+  const debouncedSave = (exercise: Exercise) => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    saveTimeoutRef.current = setTimeout(() => {
+      handleSaveExercise(exercise);
+    }, 1000); // Save after 1 second of inactivity
+  };
+
+  // Helper functions to convert between flat structure and JSONB structure
+  const convertSupersetsToJSONB = (supersets: { [key: number]: Exercise[] }) => {
+    const jsonbData: any = {};
+    
+    Object.entries(supersets).forEach(([supersetNum, exercises]) => {
+      const supersetKey = `superset${supersetNum}`;
+      jsonbData[supersetKey] = {};
+      
+      exercises.forEach((exercise, exerciseIndex) => {
+        const exerciseKey = `exercise${exerciseIndex + 1}`;
+        jsonbData[supersetKey][exerciseKey] = {
+          exercise_name: exercise.exercise_name,
+          sets: {}
+        };
+        
+        exercise.sets.forEach((set, setIndex) => {
+          const setKey = `set${setIndex + 1}`;
+          jsonbData[supersetKey][exerciseKey].sets[setKey] = {
+            reps: set.reps,
+            weight: set.weight,
+            time: set.time
+          };
+        });
+      });
+    });
+    
+    return jsonbData;
+  };
+
+  const convertJSONBToSupersets = (jsonbData: any) => {
+    const supersets: { [key: number]: Exercise[] } = {};
+    
+    Object.entries(jsonbData).forEach(([supersetKey, supersetData]: [string, any]) => {
+      const supersetNum = parseInt(supersetKey.replace('superset', ''));
+      supersets[supersetNum] = [];
+      
+      Object.entries(supersetData).forEach(([exerciseKey, exerciseData]: [string, any]) => {
+        const exerciseNum = parseInt(exerciseKey.replace('exercise', ''));
+        const exercise: Exercise = {
+          id: `temp-${supersetNum}-${exerciseNum}`,
+          exercise_name: exerciseData.exercise_name || '',
+          superset_number: supersetNum,
+          exercise_number: exerciseNum,
+          sets: []
+        };
+        
+        Object.entries(exerciseData.sets || {}).forEach(([setKey, setData]: [string, any]) => {
+          const setNum = parseInt(setKey.replace('set', ''));
+          exercise.sets[setNum - 1] = {
+            reps: setData.reps,
+            weight: setData.weight,
+            time: setData.time
+          };
+        });
+        
+        // Fill in missing sets with null values
+        while (exercise.sets.length < 3) {
+          exercise.sets.push({ reps: null, weight: null, time: null });
+        }
+        
+        supersets[supersetNum].push(exercise);
+      });
+    });
+    
+    return supersets;
+  };
 
   const loadSession = async () => {
     try {
@@ -57,22 +160,21 @@ export default function GymSession() {
 
       if (sessionError) throw sessionError;
       setSession(sessionData);
-      setSessionName(sessionData.session_name || '');
-      setSessionNotes(sessionData.notes || '');
 
-      // Load exercises
-      const { data: exercisesData, error: exercisesError } = await supabase
-        .from('GymExercises')
-        .select('*')
-        .eq('session_id', id)
-        .order('superset_number', { ascending: true });
-
-      if (exercisesError) throw exercisesError;
-      setExercises(exercisesData || []);
-
-      // Find highest superset number
-      const maxSuperset = Math.max(0, ...(exercisesData || []).map(e => e.superset_number));
-      setCurrentSuperset(maxSuperset + 1);
+      // Load superset data from JSONB column
+      if (sessionData.data && Object.keys(sessionData.data).length > 0) {
+        const loadedSupersets = convertJSONBToSupersets(sessionData.data);
+        setSupersets(loadedSupersets);
+        // Find highest superset number
+        const maxSuperset = Math.max(0, ...Object.keys(loadedSupersets).map(Number));
+        setCurrentSuperset(maxSuperset + 1);
+      } else {
+        // If no data, create empty superset
+        setSupersets({
+          1: [createEmptyExercise(1, 1)]
+        });
+        setCurrentSuperset(2);
+      }
     } catch (error) {
       console.error('Error loading session:', error);
       Alert.alert('Error', 'Failed to load gym session');
@@ -81,151 +183,259 @@ export default function GymSession() {
     }
   };
 
-  const handleSaveSession = async () => {
+  const createSession = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        Alert.alert('Error', 'You must be logged in to save gym sessions');
-        return;
+        Alert.alert('Error', 'You must be logged in to create gym sessions');
+        return null;
       }
 
       const sessionData = {
         user_id: user.id,
         session_date: new Date().toISOString().split('T')[0],
-        session_name: sessionName || null,
-        notes: sessionNotes || null,
+        data: {} // Empty JSONB object initially
       };
 
-      let sessionId = id as string;
-
-      if (id) {
-        // Update existing session
-        const { error } = await supabase
-          .from('GymSessions')
-          .update(sessionData)
-          .eq('id', id);
-        if (error) throw error;
-      } else {
-        // Create new session
-        const { data, error } = await supabase
-          .from('GymSessions')
-          .insert([sessionData])
-          .select()
-          .single();
-        if (error) throw error;
-        sessionId = data.id;
-      }
-
-      Alert.alert('Success', 'Session saved successfully!');
-      setEditing(false);
-      if (!id) {
-        router.replace(`/physical-stack/gym/session?id=${sessionId}`);
-      }
+      const { data, error } = await supabase
+        .from('GymSessions')
+        .insert([sessionData])
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      setSession(data);
+      return data.id;
     } catch (error) {
-      console.error('Error saving session:', error);
-      Alert.alert('Error', 'Failed to save gym session');
+      console.error('Error creating session:', error);
+      Alert.alert('Error', 'Failed to create gym session');
+      return null;
     }
   };
 
-  const handleAddExercise = () => {
-    const newExercise: Omit<Exercise, 'id'> = {
-      exercise_name: '',
-      weight: null,
-      sets: 1,
-      reps: 1,
-      notes: null,
-      superset_number: currentSuperset,
-    };
-    setExercises(prev => [...prev, { ...newExercise, id: `temp-${Date.now()}` }]);
-  };
+  const handleAddExercise = async (targetSupersetNumber?: number) => {
+    let sessionId = id as string;
 
-  const handleUpdateExercise = (exerciseId: string, field: keyof Exercise, value: any) => {
-    setExercises(prev => prev.map(ex => 
-      ex.id === exerciseId ? { ...ex, [field]: value } : ex
-    ));
-  };
-
-  const handleSaveExercise = async (exercise: Exercise) => {
-    if (!exercise.exercise_name.trim()) {
-      Alert.alert('Error', 'Exercise name is required');
-      return;
+    // If no session exists, create one
+    if (!sessionId) {
+      sessionId = await createSession();
+      if (!sessionId) return;
+      
+      // Update the URL to include the new session ID
+      router.replace(`/physical-stack/gym/session?id=${sessionId}`);
     }
 
+    // Use the target superset number if provided, otherwise use currentSuperset
+    const supersetToAddTo = targetSupersetNumber || currentSuperset;
+    const currentExercises = supersets[supersetToAddTo] || [];
+    const nextExerciseNumber = currentExercises.length + 1;
+    const newExercise = createEmptyExercise(supersetToAddTo, nextExerciseNumber);
+    setSupersets(prev => ({
+      ...prev,
+      [supersetToAddTo]: [...(prev[supersetToAddTo] || []), newExercise]
+    }));
+    
+    // Auto-save the new exercise after a short delay to ensure state is updated
+    setTimeout(() => {
+      handleSaveExercise(newExercise);
+    }, 100);
+  };
+
+  const handleUpdateExercise = (exerciseId: string, supersetNumber: number, field: keyof Exercise, value: any) => {
+    setSupersets(prev => {
+      const updatedSupersets = {
+        ...prev,
+        [supersetNumber]: prev[supersetNumber].map(ex => 
+          ex.id === exerciseId ? { ...ex, [field]: value } : ex
+        )
+      };
+      
+      // Trigger debounced save
+      const exercise = updatedSupersets[supersetNumber].find(ex => ex.id === exerciseId);
+      if (exercise) {
+        debouncedSave(exercise);
+      }
+      
+      return updatedSupersets;
+    });
+  };
+
+  const handleUpdateSet = (exerciseId: string, supersetNumber: number, setIndex: number, field: 'reps' | 'weight' | 'time', value: any) => {
+    setSupersets(prev => {
+      const updatedSupersets = {
+        ...prev,
+        [supersetNumber]: prev[supersetNumber].map(ex => 
+          ex.id === exerciseId ? {
+            ...ex,
+            sets: ex.sets.map((set, index) => 
+              index === setIndex ? { ...set, [field]: value } : set
+            )
+          } : ex
+        )
+      };
+      
+      // Trigger debounced save
+      const exercise = updatedSupersets[supersetNumber].find(ex => ex.id === exerciseId);
+      if (exercise) {
+        debouncedSave(exercise);
+      }
+      
+      return updatedSupersets;
+    });
+  };
+
+  const handleAddSet = (exerciseId: string, supersetNumber: number) => {
+    setSupersets(prev => ({
+      ...prev,
+      [supersetNumber]: prev[supersetNumber].map(ex => 
+        ex.id === exerciseId ? {
+          ...ex,
+          sets: [...ex.sets, { reps: null, weight: null, time: null }]
+        } : ex
+      )
+    }));
+    
+    // Auto-scroll the sets ScrollView to the end
+    setTimeout(() => {
+      const scrollViewRef = setsScrollViewRefs.current[exerciseId];
+      if (scrollViewRef) {
+        scrollViewRef.scrollToEnd({ animated: true });
+      }
+    }, 100);
+    
+    // Auto-save after adding set with delay to ensure state is updated
+    setTimeout(() => {
+      handleSaveSession();
+    }, 100);
+  };
+
+  const handleRemoveSet = (exerciseId: string, supersetNumber: number, setIndex: number) => {
+    setSupersets(prev => ({
+      ...prev,
+      [supersetNumber]: prev[supersetNumber].map(ex => 
+        ex.id === exerciseId ? {
+          ...ex,
+          sets: ex.sets.filter((_, index) => index !== setIndex)
+        } : ex
+      )
+    }));
+    
+    // Auto-save after removing set with delay to ensure state is updated
+    setTimeout(() => {
+      handleSaveSession();
+    }, 100);
+  };
+
+  const handleRemoveExercise = (exerciseId: string, supersetNumber: number) => {
+    setSupersets(prev => ({
+      ...prev,
+      [supersetNumber]: prev[supersetNumber].filter(ex => ex.id !== exerciseId)
+    }));
+    
+    // Auto-save after removing exercise
+    setTimeout(() => {
+      handleSaveSession();
+    }, 100);
+  };
+
+  const handleDeleteSuperset = async (supersetNumber: number) => {
+    Alert.alert(
+      'Delete Superset',
+      `Are you sure you want to delete Superset ${supersetNumber}? This will permanently remove all exercises in this superset.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            // Remove superset from state and renumber remaining supersets
+            setSupersets(prev => {
+              const newSupersets = { ...prev };
+              delete newSupersets[supersetNumber];
+              
+              // Renumber remaining supersets
+              const sortedKeys = Object.keys(newSupersets).map(Number).sort((a, b) => a - b);
+              const renumberedSupersets: { [key: number]: Exercise[] } = {};
+              
+              sortedKeys.forEach((oldKey, index) => {
+                const newKey = index + 1;
+                renumberedSupersets[newKey] = newSupersets[oldKey].map(exercise => ({
+                  ...exercise,
+                  superset_number: newKey
+                }));
+              });
+              
+              return renumberedSupersets;
+            });
+            
+            // Update currentSuperset to be the next available number
+            setSupersets(currentSupersets => {
+              const maxSuperset = Math.max(0, ...Object.keys(currentSupersets).map(Number));
+              setCurrentSuperset(maxSuperset + 1);
+              return currentSupersets;
+            });
+            
+            // Save the updated session data
+            handleSaveSession();
+            
+            console.log(`Superset ${supersetNumber} deleted successfully`);
+          },
+        },
+      ]
+    );
+  };
+
+  const handleSaveSession = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
       const sessionId = id as string;
-      const exerciseData = {
-        session_id: sessionId,
-        superset_number: exercise.superset_number,
-        exercise_name: exercise.exercise_name,
-        weight: exercise.weight,
-        sets: exercise.sets,
-        reps: exercise.reps,
-        notes: exercise.notes,
-      };
-
-      if (exercise.id.startsWith('temp-')) {
-        // Create new exercise
-        const { data, error } = await supabase
-          .from('GymExercises')
-          .insert([exerciseData])
-          .select()
-          .single();
-        if (error) throw error;
-        
-        setExercises(prev => prev.map(ex => 
-          ex.id === exercise.id ? { ...data } : ex
-        ));
-      } else {
-        // Update existing exercise
-        const { error } = await supabase
-          .from('GymExercises')
-          .update(exerciseData)
-          .eq('id', exercise.id);
-        if (error) throw error;
-      }
-    } catch (error) {
-      console.error('Error saving exercise:', error);
-      Alert.alert('Error', 'Failed to save exercise');
-    }
-  };
-
-  const handleDeleteExercise = async (exerciseId: string) => {
-    if (exerciseId.startsWith('temp-')) {
-      setExercises(prev => prev.filter(ex => ex.id !== exerciseId));
-      return;
-    }
-
-    try {
+      const jsonbData = convertSupersetsToJSONB(supersets);
+      
       const { error } = await supabase
-        .from('GymExercises')
-        .delete()
-        .eq('id', exerciseId);
+        .from('GymSessions')
+        .update({ data: jsonbData })
+        .eq('id', sessionId);
+      
       if (error) throw error;
       
-      setExercises(prev => prev.filter(ex => ex.id !== exerciseId));
+      console.log('Session data saved successfully');
     } catch (error) {
-      console.error('Error deleting exercise:', error);
-      Alert.alert('Error', 'Failed to delete exercise');
+      console.error('Error saving session:', error);
+      Alert.alert('Error', 'Failed to save session data');
     }
   };
 
-  const handleAddSuperset = () => {
-    setCurrentSuperset(prev => prev + 1);
+  const handleSaveExercise = async (exercise: Exercise) => {
+    // With JSONB approach, we save the entire session data
+    handleSaveSession();
   };
 
-  const groupExercisesBySuperset = () => {
-    const grouped: { [key: number]: Exercise[] } = {};
-    exercises.forEach(exercise => {
-      if (!grouped[exercise.superset_number]) {
-        grouped[exercise.superset_number] = [];
-      }
-      grouped[exercise.superset_number].push(exercise);
-    });
-    return grouped;
+
+  const handleAddSuperset = () => {
+    // Calculate the next superset number based on existing supersets
+    const existingSupersetNumbers = Object.keys(supersets).map(Number);
+    const maxSupersetNumber = Math.max(0, ...existingSupersetNumbers);
+    const newSupersetNumber = maxSupersetNumber + 1;
+    
+    setCurrentSuperset(newSupersetNumber);
+    setSupersets(prev => ({
+      ...prev,
+      [newSupersetNumber]: [createEmptyExercise(newSupersetNumber, 1)]
+    }));
+    
+    console.log(scrollViewRef?.current?.scrollToEnd);
+    // Auto-scroll to bottom after adding superset
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 100);
   };
+
 
   if (loading) {
     return (
@@ -237,118 +447,139 @@ export default function GymSession() {
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scrollView}>
+      <ScrollView ref={scrollViewRef} style={styles.scrollView}>
         {/* Session Header */}
         <View style={styles.sessionHeader}>
-          {editing ? (
-            <>
-              <TextInput
-                style={styles.sessionNameInput}
-                placeholder="Session Name (optional)"
-                value={sessionName}
-                onChangeText={setSessionName}
-              />
-              <TextInput
-                style={styles.sessionNotesInput}
-                placeholder="Session Notes (optional)"
-                value={sessionNotes}
-                onChangeText={setSessionNotes}
-                multiline
-              />
-              <TouchableOpacity style={styles.saveButton} onPress={handleSaveSession}>
-                <Text style={styles.saveButtonText}>Save Session</Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <Text style={styles.sessionTitle}>
-                {session?.session_name || 'Untitled Session'}
-              </Text>
-              <Text style={styles.sessionDate}>
-                {session?.session_date ? new Date(session.session_date).toLocaleDateString() : 'Today'}
-              </Text>
-              {session?.notes && (
-                <Text style={styles.sessionNotes}>{session.notes}</Text>
-              )}
-              <TouchableOpacity style={styles.editButton} onPress={() => setEditing(true)}>
-                <Text style={styles.editButtonText}>Edit Session</Text>
-              </TouchableOpacity>
-            </>
-          )}
+          <Text style={styles.sessionTitle}>Gym Session</Text>
+          <Text style={styles.sessionDate}>
+            {session?.session_date ? new Date(session.session_date).toLocaleDateString() : 'Today'}
+          </Text>
         </View>
 
         {/* Supersets */}
-        {Object.entries(groupExercisesBySuperset()).map(([supersetNum, supersetExercises]) => (
+        {Object.entries(supersets).map(([supersetNum, supersetExercises]) => (
           <View key={supersetNum} style={styles.supersetContainer}>
-            <Text style={styles.supersetTitle}>Superset {supersetNum}</Text>
-            {supersetExercises.map((exercise) => (
-              <View key={exercise.id} style={styles.exerciseCard}>
-                <View style={styles.exerciseHeader}>
-                  <TextInput
-                    style={styles.exerciseNameInput}
-                    placeholder="Exercise Name"
-                    value={exercise.exercise_name}
-                    onChangeText={(value) => handleUpdateExercise(exercise.id, 'exercise_name', value)}
-                    onBlur={() => handleSaveExercise(exercise)}
-                  />
-                  <TouchableOpacity
-                    style={styles.deleteButton}
-                    onPress={() => handleDeleteExercise(exercise.id)}
-                  >
-                    <Text style={styles.deleteButtonText}>×</Text>
-                  </TouchableOpacity>
-                </View>
-                
-                <View style={styles.exerciseDetails}>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Weight (lbs):</Text>
+            <View style={styles.supersetHeader}>
+              <Text style={styles.supersetTitle}>Superset {supersetNum}</Text>
+              <TouchableOpacity
+                style={styles.deleteSupersetButton}
+                onPress={() => handleDeleteSuperset(parseInt(supersetNum))}
+              >
+                <Text style={styles.deleteSupersetButtonText}>×</Text>
+              </TouchableOpacity>
+            </View>
+            
+            {/* Superset Box */}
+            <View style={styles.supersetBox}>        
+              
+              {/* Exercise Rows */}
+              {supersetExercises.map((exercise, exerciseIndex) => (
+                <View key={exercise.id} style={styles.exerciseRow}>
+                  {/* Exercise Name Column */}
+                  <View style={styles.exerciseColumn}>
                     <TextInput
-                      style={styles.detailInput}
-                      placeholder="0"
-                      value={exercise.weight?.toString() || ''}
-                      onChangeText={(value) => handleUpdateExercise(exercise.id, 'weight', value ? parseFloat(value) : null)}
-                      onBlur={() => handleSaveExercise(exercise)}
-                      keyboardType="numeric"
+                      style={styles.exerciseNameInput}
+                      placeholder="Exercise Name"
+                      multiline={true}
+                      value={exercise.exercise_name}
+                      onChangeText={(value) => handleUpdateExercise(exercise.id, parseInt(supersetNum), 'exercise_name', value)}
                     />
+                    {/* Add Exercise Button - Only show on last exercise */}
+                    {exerciseIndex === supersetExercises.length - 1 && (
+                      <TouchableOpacity 
+                        style={styles.addExerciseToSupersetButton} 
+                        onPress={() => handleAddExercise(parseInt(supersetNum))}
+                      >
+                        <Text style={styles.plusSign}>+</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                   
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Sets:</Text>
-                    <TextInput
-                      style={styles.detailInput}
-                      value={exercise.sets.toString()}
-                      onChangeText={(value) => handleUpdateExercise(exercise.id, 'sets', parseInt(value) || 1)}
-                      onBlur={() => handleSaveExercise(exercise)}
-                      keyboardType="numeric"
-                    />
+                  {/* Scrollable Sets Container */}
+                  <View style={styles.setsScrollContainer}>
+                    <ScrollView 
+                      horizontal 
+                      style={styles.setsScrollView}
+                      showsHorizontalScrollIndicator={false}
+                      ref={(ref) => {
+                        if (ref) {
+                          setsScrollViewRefs.current[exercise.id] = ref;
+                        }
+                      }}
+                    >
+                      <View style={styles.setsContainer}>
+                      {exercise.sets.map((set, setIndex) => (
+                        <View key={setIndex} style={styles.setColumn}>
+                          <View style={styles.setInputs}>
+                            <TextInput
+                              style={styles.setInput}
+                              placeholder="Reps"
+                              value={set.reps?.toString() || ''}
+                              onChangeText={(value) => handleUpdateSet(exercise.id, parseInt(supersetNum), setIndex, 'reps', value ? parseInt(value) : null)}
+                              keyboardType="numeric"
+                            />
+                            <TextInput
+                              style={styles.setInput}
+                              placeholder="Weight"
+                              value={set.weight?.toString() || ''}
+                              onChangeText={(value) => handleUpdateSet(exercise.id, parseInt(supersetNum), setIndex, 'weight', value ? parseFloat(value) : null)}
+                              keyboardType="numeric"
+                            />
+                            <TextInput
+                              style={styles.setInput}
+                              placeholder="Time"
+                              value={set.time?.toString() || ''}
+                              onChangeText={(value) => handleUpdateSet(exercise.id, parseInt(supersetNum), setIndex, 'time', value ? parseFloat(value) : null)}
+                              keyboardType="numeric"
+                            />
+                          </View>
+                          {/* Remove Set Button */}
+                          {exercise.sets.length > 1 && (
+                            <TouchableOpacity
+                              style={styles.removeSetButton}
+                              onPress={() => handleRemoveSet(exercise.id, parseInt(supersetNum), setIndex)}
+                            >
+                              <Text style={styles.removeSetButtonText}>−</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      ))}
+                      {/* Add Set Button */}
+                      <TouchableOpacity
+                        style={styles.addSetButton}
+                        onPress={() => handleAddSet(exercise.id, parseInt(supersetNum))}
+                      >
+                        <Text style={styles.addSetButtonText}>+</Text>
+                      </TouchableOpacity>
+                      </View>
+                    </ScrollView>
                   </View>
                   
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Reps:</Text>
-                    <TextInput
-                      style={styles.detailInput}
-                      value={exercise.reps.toString()}
-                      onChangeText={(value) => handleUpdateExercise(exercise.id, 'reps', parseInt(value) || 1)}
-                      onBlur={() => handleSaveExercise(exercise)}
-                      keyboardType="numeric"
-                    />
-                  </View>
+                  {/* Exercise Action Buttons */}
+                  {/* <View style={styles.exerciseActionButtons}>
+                    <TouchableOpacity
+                      style={styles.removeExerciseButton}
+                      onPress={() => handleRemoveExercise(exercise.id, parseInt(supersetNum))}
+                    >
+                      <Text style={styles.removeExerciseButtonText}>−</Text>
+                    </TouchableOpacity>
+                  </View> */}
                 </View>
-              </View>
-            ))}
+              ))}
+            </View>
           </View>
         ))}
-
-        {/* Add Exercise Button */}
-        <TouchableOpacity style={styles.addExerciseButton} onPress={handleAddExercise}>
-          <Text style={styles.addExerciseButtonText}>+ Add Exercise to Superset {currentSuperset}</Text>
-        </TouchableOpacity>
-
-        {/* Add Superset Button */}
-        <TouchableOpacity style={styles.addSupersetButton} onPress={handleAddSuperset}>
-          <Text style={styles.addSupersetButtonText}>+ Add New Superset</Text>
-        </TouchableOpacity>
       </ScrollView>
+      
+      {/* Add Superset Button - Pinned to bottom right */}
+      {/* <View style={styles.bottomButtonsContainer}>
+        <TouchableOpacity style={styles.addSupersetButton} onPress={handleAddSuperset}>
+          <Text style={styles.plusSign}>+</Text>
+        </TouchableOpacity>
+      </View> */}
+      <TouchableOpacity style={styles.addSupersetButton} onPress={handleAddSuperset}>
+          <Text style={styles.plusSign}>+</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -356,14 +587,15 @@ export default function GymSession() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#000000',
   },
   scrollView: {
     flex: 1,
     padding: 16,
+    paddingBottom: 50, // Extra padding to ensure plus button doesn't overlap content
   },
   sessionHeader: {
-    backgroundColor: 'white',
+    backgroundColor: '#000000',
     padding: 16,
     borderRadius: 12,
     marginBottom: 16,
@@ -393,64 +625,39 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     marginBottom: 12,
   },
-  sessionNameInput: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    marginBottom: 12,
-    backgroundColor: 'white',
-  },
-  sessionNotesInput: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    marginBottom: 12,
-    backgroundColor: 'white',
-    minHeight: 80,
-    textAlignVertical: 'top',
-  },
-  saveButton: {
-    backgroundColor: '#FF6B35',
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  saveButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  editButton: {
-    backgroundColor: '#007AFF',
-    padding: 8,
-    borderRadius: 6,
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-  },
-  editButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
-  },
   supersetContainer: {
     marginBottom: 20,
+  },
+  supersetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    paddingLeft: 8,
   },
   supersetTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 12,
-    paddingLeft: 8,
+    color: '#ffffff',
   },
-  exerciseCard: {
+  deleteSupersetButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#ff4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  deleteSupersetButtonText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  supersetBox: {
     backgroundColor: 'white',
-    padding: 16,
     borderRadius: 12,
-    marginBottom: 12,
+    padding: 16,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -460,81 +667,165 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
-  exerciseHeader: {
+  headerRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 2,
+    borderBottomColor: '#ddd',
+    paddingBottom: 8,
+    marginBottom: 12,
+  },
+  exerciseColumn: {
+    flex: 2,
+    paddingRight: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  setColumn: {
+    flex: 1,
+    paddingHorizontal: 4,
+  },
+  columnHeader: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#666',
+    textAlign: 'center',
+  },
+  exerciseRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
+    paddingVertical: 8,
   },
   exerciseNameInput: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 16,
     color: '#333',
     borderBottomWidth: 1,
     borderBottomColor: '#ddd',
     paddingBottom: 4,
   },
-  deleteButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#ff4444',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 12,
-  },
-  deleteButtonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  exerciseDetails: {
-    gap: 8,
-  },
-  detailRow: {
+    setsScrollContainer: {
+      flex: 8,
+      marginHorizontal: 8,
+    },
+    setsScrollView: {
+      flex: 1,
+    },
+  setsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
   },
-  detailLabel: {
-    fontSize: 16,
-    color: '#666',
-    minWidth: 80,
+  setInputs: {
+    gap: 4,
   },
-  detailInput: {
+  setInput: {
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 6,
     padding: 8,
-    fontSize: 16,
-    width: 80,
+    fontSize: 14,
     textAlign: 'center',
     backgroundColor: 'white',
+    width: 60,
   },
-  addExerciseButton: {
+  addSetButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: '#4CAF50',
-    padding: 16,
-    borderRadius: 12,
     alignItems: 'center',
-    marginBottom: 12,
+    justifyContent: 'center',
+    marginLeft: 8,
   },
-  addExerciseButtonText: {
+  addSetButtonText: {
     color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  removeSetButton: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#ff4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+    alignSelf: 'center',
+  },
+  removeSetButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  exerciseActionButtons: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  removeExerciseButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#ff9800',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  removeExerciseButtonText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  addExerciseToSupersetButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#4CAF50',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
   },
   addSupersetButton: {
-    backgroundColor: '#2196F3',
-    padding: 16,
-    borderRadius: 12,
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderColor: 'yellow',
+    borderWidth: 1,
+    backgroundColor: '#000',
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
-  addSupersetButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
+  plusSign: {
+    color: 'yellow',
+    fontSize: 32,
+    fontWeight: 'bold',
+    lineHeight: 32,
   },
+  // bottomButtonsContainer: {
+  //   flexDirection: 'row',
+  //   justifyContent: 'space-between',
+  //   alignItems: 'center',
+  //   paddingHorizontal: 20,
+  //   paddingTop: 20,
+  //   paddingBottom: 20,
+  //   marginTop: 20,
+  //   position: 'absolute',
+  //   bottom: 0,
+  //   left: 0,
+  //   right: 0,
+  //   backgroundColor: '#000000',
+  // },
   loadingText: {
     textAlign: 'center',
     fontSize: 16,

@@ -6,9 +6,7 @@ import { supabase } from '../../../lib/supabase';
 interface GymSession {
   id: string;
   session_date: string;
-  session_name: string | null;
-  notes: string | null;
-  created_at: string;
+  data: any; // JSONB data for storing superset information
 }
 
 export default function GymIndex() {
@@ -53,6 +51,50 @@ export default function GymIndex() {
     router.push(`/physical-stack/gym/session?id=${session.id}`);
   };
 
+  const handleSessionLongPress = (session: GymSession) => {
+    Alert.alert(
+      'Delete Session',
+      `Are you sure you want to delete the gym session from ${formatDate(session.session_date)}? This will permanently remove all exercises and data in this session.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => deleteSession(session),
+        },
+      ]
+    );
+  };
+
+  const deleteSession = async (session: GymSession) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        Alert.alert('Error', 'You must be logged in to delete sessions');
+        return;
+      }
+
+      const { error } = await supabase
+        .from('GymSessions')
+        .delete()
+        .eq('id', session.id)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      // Remove session from local state
+      setSessions(prevSessions => prevSessions.filter(s => s.id !== session.id));
+      
+      Alert.alert('Success', 'Gym session deleted successfully');
+    } catch (error) {
+      console.error('Error deleting session:', error);
+      Alert.alert('Error', 'Failed to delete gym session');
+    }
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
@@ -64,9 +106,11 @@ export default function GymIndex() {
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.newSessionButton} onPress={handleNewSession}>
-        <Text style={styles.newSessionButtonText}>+ New Session</Text>
-      </TouchableOpacity>
+      <View style={styles.addContainer}>           
+        <TouchableOpacity style={styles.addButton} onPress={handleNewSession}>
+          <Text style={styles.plusSign}>+</Text>
+        </TouchableOpacity>
+      </View>
 
       <ScrollView style={styles.sessionsContainer}>
         {loading ? (
@@ -77,18 +121,11 @@ export default function GymIndex() {
               key={session.id}
               style={styles.sessionCard}
               onPress={() => handleSessionPress(session)}
+              onLongPress={() => handleSessionLongPress(session)}
             >
               <View style={styles.sessionHeader}>
                 <Text style={styles.sessionDate}>{formatDate(session.session_date)}</Text>
-                {session.session_name && (
-                  <Text style={styles.sessionName}>{session.session_name}</Text>
-                )}
               </View>
-              {session.notes && (
-                <Text style={styles.sessionNotes} numberOfLines={2}>
-                  {session.notes}
-                </Text>
-              )}
             </TouchableOpacity>
           ))
         ) : (
@@ -107,25 +144,34 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
     padding: 16,
   },
-  newSessionButton: {
-    backgroundColor: '#FF6B35',
-    padding: 16,
-    borderRadius: 12,
+  plusSign: {
+    color: 'white',
+    fontSize: 32,
+    fontWeight: 'bold',
+    lineHeight: 32,
+  },
+  addButton: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#F41A99',
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    marginBottom: 20,
   },
-  newSessionButtonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: '600',
+  addContainer: {
+    flexDirection: "row",
+    width: "100%",
+    alignItems: 'center',
+    justifyContent: "center",
   },
   sessionsContainer: {
     flex: 1,

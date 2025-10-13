@@ -17,15 +17,19 @@
 
 **Bugs from most recent iPhone build**
 FIXED- Chat entry box size, typing off width of screen, slow response time, agent always responding with how to improve instead of just answering question.
-- No faceID auto reentry (expected)
-- Assets not loading? download icon + sketch icon not visible but still respond to touch. Possibly due to manually adding my "main.jsbundle" to Xcode?
+FIXED- No faceID auto reentry (expected)
+FIXED- Assets not loading? download icon + sketch icon not visible but still respond to touch. Possibly due to manually adding my "main.jsbundle" to Xcode?
 FIXED- Download modal calendar extend beyond width of modal
 - Physical backend network request failure (expected)
 FIXED?- Session creation modal keybaord input only allows for numbers, problems when you change default date entry
-- Splash screen shows up for ~15s when opening app on iPhone (FIX: SWITCH XCODE FROM DEV BUILD TO DEPLOYMENT BUILD)
+- Splash screen shows up for ~15s when opening app on iPhone 
+- Add superset button + keyboard sensitive scroll view on gym page
+- Keyboard sensitive scrollview responsive to new line on. Anytime someone is typing, the typing line should be visible just above the keyboard.
 
 
 **Features to add**
 IMPLEMENTED- Timestamp entry should be fixed by regex to [0-9]*:[0-9][0-9]. (expected)
 IMPLEMENTED- "Note" option should be only text entry (NEED TO IMPLEMENT BACKEND OPERATION FOR NOTE ENTRY, ALTER VALUE SHOWN IN FRONT END OF JOURNALENTRY/INDEX)
 IMPLEMENTED- Sketch functions (eraser, undo, color) (expected)
+- Time scroll for timestamp
+- Arrowhead direction + change dashed arrow + ball + straighten arrows
