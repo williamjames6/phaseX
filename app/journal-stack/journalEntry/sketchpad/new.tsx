@@ -7,24 +7,55 @@ import { supabase } from '../../../../lib/supabase';
 
 const { width, height } = Dimensions.get('window');
 
+interface PathData {
+  d: string;
+  filled: boolean;
+}
+
 interface Sketch {
   id: string;
-  paths: string[];
+  paths: PathData[];
+  grey_paths: PathData[];
   user_id: string;
 }
 
 export default function NewSketchScreen() {
   const params = useLocalSearchParams();
-  const [paths, setPaths] = useState<string[]>([]);
+  const [paths, setPaths] = useState<PathData[]>([]);
+  const [greyPaths, setGreyPaths] = useState<PathData[]>([]);
   const [startPoint, setStartPoint] = useState<{x:number;y:number} | null>(null);
   const [mode, setMode] = useState<'x'|'o'|'solid'|'dashed'|'x-circle'|'o-filled'|'solid-grey'|'dashed-grey'>('solid');
   const [strokeCounts, setStrokeCounts] = useState<number[]>([]);
+  const [greyStrokeCounts, setGreyStrokeCounts] = useState<number[]>([]);
   const actionId = params.actionId as string;
   const sessionId = params.sessionId as string;
   const appState = useRef(AppState.currentState);
   const hasUnsavedChanges = useRef(false);
-  const pathsRef = useRef<string[]>([]);
+  const pathsRef = useRef<PathData[]>([]);
+  const greyPathsRef = useRef<PathData[]>([]);
 
+  // Helper functions to determine which array to use based on mode
+  const isGreyMode = (currentMode: string) => {
+    return currentMode === 'solid-grey' || currentMode === 'dashed-grey';
+  };
+
+  const addPathsToArray = (newPaths: PathData[], strokeCount: number) => {
+    if (isGreyMode(mode)) {
+      setGreyPaths(prev => {
+        const newGreyPaths = [...prev, ...newPaths];
+        greyPathsRef.current = newGreyPaths;
+        return newGreyPaths;
+      });
+      setGreyStrokeCounts(prev => [...prev, strokeCount]);
+    } else {
+      setPaths(prev => {
+        const newBlackPaths = [...prev, ...newPaths];
+        pathsRef.current = newBlackPaths;
+        return newBlackPaths;
+      });
+      setStrokeCounts(prev => [...prev, strokeCount]);
+    }
+  };
 
   // Auto-save function - using refs to avoid infinite loops
   const handleAutoSave = useCallback(async () => {
@@ -42,7 +73,8 @@ export default function NewSketchScreen() {
 
       // Get current paths from ref to avoid dependency issues
       const currentPaths = pathsRef.current;
-      if (currentPaths.length === 0) {
+      const currentGreyPaths = greyPathsRef.current;
+      if (currentPaths.length === 0 && currentGreyPaths.length === 0) {
         return;
       }
 
@@ -52,6 +84,7 @@ export default function NewSketchScreen() {
           {
             user_id: user.id,
             paths: currentPaths,
+            grey_paths: currentGreyPaths,
             id: params.sketchId
           }
         ], { onConflict: "id" });
@@ -92,7 +125,7 @@ export default function NewSketchScreen() {
           }
           const { data: sketchData, error: sketchError } = await supabase
             .from('TacticalSketches')
-            .select('paths')
+            .select('paths, grey_paths')
             .eq('id', params.sketchId)
             .maybeSingle();
 
@@ -101,9 +134,28 @@ export default function NewSketchScreen() {
             throw sketchError;
           }
           if (sketchData) {
-            setPaths(sketchData.paths);
-            pathsRef.current = sketchData.paths;
-            console.log(sketchData.paths);
+            // Handle migration from old string format to new PathData format
+            const convertToPathData = (pathArray: any[]): PathData[] => {
+              if (!pathArray || pathArray.length === 0) return [];
+              return pathArray.map(path => {
+                if (typeof path === 'string') {
+                  // Old format - convert to new format
+                  return { d: path, filled: false };
+                }
+                // New format - already has d and filled properties
+                return path;
+              });
+            };
+
+            const blackPaths = convertToPathData(sketchData.paths);
+            const greyPaths = convertToPathData(sketchData.grey_paths);
+            
+            setPaths(blackPaths);
+            setGreyPaths(greyPaths);
+            pathsRef.current = blackPaths;
+            greyPathsRef.current = greyPaths;
+            console.log('Black paths:', blackPaths);
+            console.log('Grey paths:', greyPaths);
           }
         }
         catch (error: unknown) {
@@ -137,12 +189,10 @@ export default function NewSketchScreen() {
       const half = 4*Math.sqrt(2);
       const horiz = `M ${locationX - half} ${locationY - half} L ${locationX + half} ${locationY + half}`;
       const vert = `M ${locationX - half} ${locationY + half} L ${locationX + half} ${locationY - half}`;
-      setPaths(prev => {
-        const newPaths = [...prev, horiz, vert];
-        pathsRef.current = newPaths;
-        return newPaths;
-      });
-      setStrokeCounts(prev => [...prev, 2]);
+      addPathsToArray([
+        { d: horiz, filled: false },
+        { d: vert, filled: false }
+      ], 2);
       hasUnsavedChanges.current = true;
       return;
     }
@@ -153,12 +203,11 @@ export default function NewSketchScreen() {
       const horiz = `M ${locationX - half} ${locationY - half} L ${locationX + half} ${locationY + half}`;
       const vert = `M ${locationX - half} ${locationY + half} L ${locationX + half} ${locationY - half}`;
       const circle = `M ${locationX + r} ${locationY} A ${r} ${r} 0 1 0 ${locationX - r} ${locationY} A ${r} ${r} 0 1 0 ${locationX + r} ${locationY}`;
-      setPaths(prev => {
-        const newPaths = [...prev, horiz, vert, circle];
-        pathsRef.current = newPaths;
-        return newPaths;
-      });
-      setStrokeCounts(prev => [...prev, 3]);
+      addPathsToArray([
+        { d: horiz, filled: false },
+        { d: vert, filled: false },
+        { d: circle, filled: false }
+      ], 3);
       hasUnsavedChanges.current = true;
       return;
     }
@@ -166,12 +215,7 @@ export default function NewSketchScreen() {
       // Circle of radius 8px centered at tap point (approximate with arc path)
       const r = 8;
       const circle = `M ${locationX + r} ${locationY} A ${r} ${r} 0 1 0 ${locationX - r} ${locationY} A ${r} ${r} 0 1 0 ${locationX + r} ${locationY}`;
-      setPaths(prev => {
-        const newPaths = [...prev, circle];
-        pathsRef.current = newPaths;
-        return newPaths;
-      });
-      setStrokeCounts(prev => [...prev, 1]);
+      addPathsToArray([{ d: circle, filled: false }], 1);
       hasUnsavedChanges.current = true;
       return;
     }
@@ -179,12 +223,7 @@ export default function NewSketchScreen() {
       // Filled circle of radius 8px centered at tap point
       const r = 8;
       const circle = `M ${locationX + r} ${locationY} A ${r} ${r} 0 1 0 ${locationX - r} ${locationY} A ${r} ${r} 0 1 0 ${locationX + r} ${locationY}`;
-      setPaths(prev => {
-        const newPaths = [...prev, circle];
-        pathsRef.current = newPaths;
-        return newPaths;
-      });
-      setStrokeCounts(prev => [...prev, 1]);
+      addPathsToArray([{ d: circle, filled: true }], 1);
       hasUnsavedChanges.current = true;
       return;
     }
@@ -226,13 +265,11 @@ export default function NewSketchScreen() {
     if (mode === 'solid' || mode === 'solid-grey') {
       const line = `M ${startPoint.x} ${startPoint.y} L ${endPoint.x} ${endPoint.y}`;
       const heads = addArrowHeadSegments(startPoint, endPoint);
-      const toAdd = [line, ...heads];
-      setPaths(prev => {
-        const newPaths = [...prev, ...toAdd];
-        pathsRef.current = newPaths;
-        return newPaths;
-      });
-      setStrokeCounts(prev => [...prev, toAdd.length]);
+      const toAdd = [
+        { d: line, filled: false },
+        ...heads.map(head => ({ d: head, filled: false }))
+      ];
+      addPathsToArray(toAdd, toAdd.length);
       setStartPoint(null);
       hasUnsavedChanges.current = true;
       return;
@@ -271,13 +308,11 @@ export default function NewSketchScreen() {
       }
       
       const heads = addArrowHeadSegments(startPoint, endPoint);
-      const toAdd = [...outSegments, ...heads];
-      setPaths(prev => {
-        const newPaths = [...prev, ...toAdd];
-        pathsRef.current = newPaths;
-        return newPaths;
-      });
-      setStrokeCounts(prev => [...prev, toAdd.length]);
+      const toAdd = [
+        ...outSegments.map(segment => ({ d: segment, filled: false })),
+        ...heads.map(head => ({ d: head, filled: false }))
+      ];
+      addPathsToArray(toAdd, toAdd.length);
       setStartPoint(null);
       hasUnsavedChanges.current = true;
       return;
@@ -285,15 +320,33 @@ export default function NewSketchScreen() {
   };
 
   const handleUndo = () => {
-    if (strokeCounts.length === 0) return;
-    const counts = [...strokeCounts];
-    const last = counts.pop() as number;
-    setStrokeCounts(counts);
-    setPaths(prev => {
-      const newPaths = prev.slice(0, Math.max(0, prev.length - last));
-      pathsRef.current = newPaths;
-      return newPaths;
-    });
+    // Check which array has the most recent stroke
+    const blackCount = strokeCounts.length;
+    const greyCount = greyStrokeCounts.length;
+    
+    if (blackCount === 0 && greyCount === 0) return;
+    
+    // Undo from the array that was last modified
+    if (blackCount > 0 && (greyCount === 0 || blackCount >= greyCount)) {
+      const counts = [...strokeCounts];
+      const last = counts.pop() as number;
+      setStrokeCounts(counts);
+      setPaths(prev => {
+        const newPaths = prev.slice(0, Math.max(0, prev.length - last));
+        pathsRef.current = newPaths;
+        return newPaths;
+      });
+    } else {
+      const counts = [...greyStrokeCounts];
+      const last = counts.pop() as number;
+      setGreyStrokeCounts(counts);
+      setGreyPaths(prev => {
+        const newGreyPaths = prev.slice(0, Math.max(0, prev.length - last));
+        greyPathsRef.current = newGreyPaths;
+        return newGreyPaths;
+      });
+    }
+    
     setStartPoint(null);
     hasUnsavedChanges.current = true;
   };
@@ -356,19 +409,30 @@ export default function NewSketchScreen() {
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
         >
-          {paths.map((path, index) => {
-            // Determine color and fill based on the path index and mode
-            // This is a simplified approach - in a real app you'd want to store color info with each path
-            const isGrey = mode === 'solid-grey' || mode === 'dashed-grey';
-            const isFilled = mode === 'o-filled';
-            const strokeColor = isGrey ? '#acb3b9' : 'black';
-            const fillColor = isFilled ? 'black' : 'none';
+          {/* Render black paths */}
+          {paths.map((pathData, index) => {
+            const fillColor = pathData.filled ? 'black' : 'none';
             
             return (
               <Path
-                key={index}
-                d={path}
-                stroke={strokeColor}
+                key={`black-${index}`}
+                d={pathData.d}
+                stroke="black"
+                strokeWidth={2}
+                fill={fillColor}
+              />
+            );
+          })}
+          
+          {/* Render grey paths */}
+          {greyPaths.map((pathData, index) => {
+            const fillColor = pathData.filled ? '#acb3b9' : 'none';
+            
+            return (
+              <Path
+                key={`grey-${index}`}
+                d={pathData.d}
+                stroke="#acb3b9"
                 strokeWidth={2}
                 fill={fillColor}
               />

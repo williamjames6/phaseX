@@ -8,7 +8,7 @@ import { supabase } from '../../../lib/supabase';
 
 interface Action {
   id: number;
-  timestamp: string;
+  timestamp: string | number;
   description: string;
   dbId: string; // Store the actual database UUID for submitted actions
   sketch_id: string; // Store sketch ID that needs to be linked when action is submitted
@@ -16,6 +16,18 @@ interface Action {
 const { width, height } = Dimensions.get('window');
 const MINUTE_OPTIONS = Array.from({ length: 301 }, (_, index) => index);
 const SECOND_OPTIONS = Array.from({ length: 12 }, (_, index) => index * 5);
+//timeSwtich function only called when sending or receiving data from the database. All frontend operations
+//use string format for timestamp. Backend stores as number of seconds.
+const timeSwitch = (time: string | number) => {
+  if (typeof time === 'number') {
+    const minutes = Math.floor(time / 60);
+    const seconds = time % 60 < 10 ? `0${time % 60}` : time % 60;
+    return `${minutes}:${seconds}`;
+  } else {
+    const [minutes, seconds] = time.split(':').map(Number);
+    return minutes * 60 + seconds;
+  }
+}
 
 export default function JournalEntryIndex() {
   const { sessionId, sessionDate, sessionType } = useLocalSearchParams();
@@ -23,11 +35,12 @@ export default function JournalEntryIndex() {
   const [nextId, setNextId] = useState(1);
   const [loading, setLoading] = useState(true);
   const scrollViewRef = useRef<ScrollView>(null);
-  const timeRegex = /\b\d{1,3}:\d{2}\b/;
+  //const timeRegex = /\b\d{1,3}:\d{2}\b/;
   const [isPickerVisible, setPickerVisible] = useState(false);
   const [pickerActionId, setPickerActionId] = useState<number | null>(null);
   const [selectedMinutes, setSelectedMinutes] = useState(0);
   const [selectedSeconds, setSelectedSeconds] = useState(0);
+  //const [dbTime, setDbTime] = useState(0);
 
 
   // Load existing actions for this session
@@ -37,9 +50,9 @@ export default function JournalEntryIndex() {
     try {
       const { data, error } = await supabase
         .from('Actions')
-        .select('id, time_stamp, description, sketch_id')
+        .select('id, time_stamp_seconds, description, sketch_id')
         .eq('session_id', sessionId)
-        .order('time_stamp', { ascending: true });
+        .order('time_stamp_seconds', { ascending: true });
 
       if (error) {
         console.error('Error loading actions:', error);
@@ -50,7 +63,7 @@ export default function JournalEntryIndex() {
       // Convert database actions to local action format
       const existingActions: Action[] = (data || []).map((dbAction, index) => ({
         id: -(index + 1), // Use negative IDs to avoid conflicts with new actions
-        timestamp: dbAction.time_stamp,
+        timestamp: timeSwitch(dbAction.time_stamp_seconds),
         description: dbAction.description,
         dbId: dbAction.id, // Store the actual database ID
         sketch_id: dbAction.sketch_id
@@ -98,11 +111,11 @@ export default function JournalEntryIndex() {
       Alert.alert('Error', 'No session ID found');
       return;
     }
-    if (sessionType !== "note" && !action.timestamp.match(timeRegex) && fromTimeStamp) {
-      console.log(fromTimeStamp);
-      Alert.alert('Please enter a valid time stamp of the form [minutes:seconds]')
-      return;
-    }
+    // if (sessionType !== "note" && fromTimeStamp) {
+    //   console.log(fromTimeStamp);
+    //   Alert.alert('Please enter a valid time stamp of the form [minutes:seconds]')
+    //   return;
+    // }
     try {
       const { data, error } = await supabase
         .from('Actions')
@@ -110,7 +123,7 @@ export default function JournalEntryIndex() {
           {
             id: action.dbId,
             session_id: sessionId,
-            time_stamp: action.timestamp,
+            time_stamp_seconds: timeSwitch(action.timestamp),
             description: action.description,
             sketch_id: action.sketch_id,
             session_date: sessionDate
@@ -146,7 +159,6 @@ export default function JournalEntryIndex() {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            let filter = action.timestamp;
             console.log(action.dbId, typeof(action.dbId));
             try {
               const { data, error } = await supabase
@@ -197,20 +209,20 @@ export default function JournalEntryIndex() {
     let minutes = 0;
     let seconds = 0;
 
-    if (timeRegex.test(action.timestamp)) {
-      const [minutePart, secondPart] = action.timestamp.split(':');
-      const parsedMinutes = parseInt(minutePart, 10);
-      const parsedSeconds = parseInt(secondPart, 10);
+    // if (timeRegex.test(action.timestamp)) {
+    const [minutePart, secondPart] = action.timestamp.toString().split(':');
+    const parsedMinutes = parseInt(minutePart, 10);
+    const parsedSeconds = parseInt(secondPart, 10);
 
-      if (!Number.isNaN(parsedMinutes)) {
-        minutes = Math.min(300, Math.max(0, parsedMinutes));
-      }
-
-      if (!Number.isNaN(parsedSeconds)) {
-        const roundedSeconds = Math.min(55, Math.round(parsedSeconds / 5) * 5);
-        seconds = SECOND_OPTIONS.includes(roundedSeconds) ? roundedSeconds : 0;
-      }
+    if (!Number.isNaN(parsedMinutes)) {
+      minutes = Math.min(300, Math.max(0, parsedMinutes));
     }
+
+    if (!Number.isNaN(parsedSeconds)) {
+      const roundedSeconds = Math.min(55, Math.round(parsedSeconds / 5) * 5);
+      seconds = SECOND_OPTIONS.includes(roundedSeconds) ? roundedSeconds : 0;
+    }
+    // }
 
     setSelectedMinutes(minutes);
     setSelectedSeconds(seconds);
