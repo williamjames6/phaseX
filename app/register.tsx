@@ -23,7 +23,8 @@ export default function RegisterScreen() {
       if (error) throw error;
       
       Alert.alert('Success', 'Registration successful! Please check your email to verify your account.');
-      router.replace('/');
+      
+      router.replace('/?fromRegister=true');
     } catch (error: any) {
       Alert.alert('Error', error.message);
     }

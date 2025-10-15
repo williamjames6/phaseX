@@ -3,7 +3,7 @@ import { useNavigation } from "@react-navigation/native";
 import { File, Paths } from 'expo-file-system';
 import { router, useFocusEffect } from 'expo-router';
 import * as Sharing from 'expo-sharing';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Image, Keyboard, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { convertToCSV } from "../../assets/helpers/json2SCV";
 import SidebarModal from '../../components/SidebarModal';
@@ -41,6 +41,11 @@ export default function JournalIndex() {
   const [endDate, setEndDate] = useState<Date | null>(today);
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
+
+  useEffect(() => {
+    console.log("Mounted:");
+    return () => console.log("Unmounted:");
+  }, []);
 
   useHeaderWithMenu({
     title: 'Journal',

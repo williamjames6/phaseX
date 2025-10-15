@@ -41,3 +41,6 @@ IMPLEMENTED- Sketch functions (eraser, undo, color) (expected)
 IMPLEMENTED- Time scroll for timestamp
 IMPLEMENTED- Arrowhead direction + change dashed arrow + ball + straighten arrows
 - Linking with [] and {} for timestamps and other dates
+- Right now, nothing about the chat interaction persists across renders. Very short term --> should be more useful long term
+- Timeout for router.replace("/") on appState going to background
+- Forgot password flow + verify email flow

@@ -1,13 +1,17 @@
 import * as LocalAuthentication from 'expo-local-authentication';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '../lib/supabase';
+
 
 export default function LoginScreen() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const fromRegister = useLocalSearchParams().fromRegister;
+  
   
   // Animation values
   const loginOpacity = useRef(new Animated.Value(0)).current;
@@ -93,8 +97,31 @@ export default function LoginScreen() {
       console.log("Tokens from normal login: ", data.session.refresh_token, data.session.access_token);
       await SecureStore.setItemAsync('refresh_token', data.session.refresh_token);
       await SecureStore.setItemAsync('access_token', data.session.access_token);
-      if (error) throw error;
-      
+
+      if (fromRegister) {
+              // Create Master session for the newly registered user
+        if (data.user) {
+          const masterSessionId = uuidv4();
+          const { error: sessionError } = await supabase
+            .from('Sessions')
+            .insert([
+              {
+                id: masterSessionId,
+                user_id: data.user.id,
+                type: 'note',
+                date: null,
+                description: ''
+              }
+            ]);
+
+          if (sessionError) {
+            console.error('Error creating Master session:', sessionError);
+            // Don't fail registration if Master session creation fails
+          } else {
+            console.log('Master session created successfully');
+          }
+        };
+      };      
       // Navigate to home screen after successful login
       router.replace('/home');
     } catch (error) {
