@@ -27,7 +27,7 @@ export default function JournalIndex() {
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedType, setSelectedType] = useState('training');
   const [sessionDescription, setSessionDescription] = useState('');
   const limit = 10;
@@ -37,8 +37,8 @@ export default function JournalIndex() {
   const twoYearsAgo = new Date();
   twoYearsAgo.setFullYear(today.getFullYear() - 2);
   monthAgo.setMonth(today.getMonth()- 1);
-  const [startDate, setStartDate] = useState<Date | null>(null);
-  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [startDate, setStartDate] = useState<Date | null>(monthAgo);
+  const [endDate, setEndDate] = useState<Date | null>(today);
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
 
@@ -56,8 +56,7 @@ export default function JournalIndex() {
   });
 
   const downloadMonthlyActions = async (start: Date | null, end: Date | null) => {
-
-    const now = new Date();
+    console.log("Start: ", start, "End: ", end);
     if (!start || !end) {
       Alert.alert("Please enter a valid date range");
       return;
@@ -74,7 +73,7 @@ export default function JournalIndex() {
     // const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
     const { data, error } = await supabase //don't like this format without "try, catch" blocks but just trying to get functionality right now
       .from('Actions')
-      .select('time_stamp, description, session_date')
+      .select('time_stamp_seconds, description, session_date')
       .gte('session_date', firstDay)
       .lte('session_date', lastDay)
       .order("session_date", {ascending: true});
@@ -84,6 +83,7 @@ export default function JournalIndex() {
       Alert.alert("Failure to retrieve requested actions. What are you gonna do, cry about it? Fuck you.");
       return;
     }
+    console.log("Data: ", data);
     const csv = convertToCSV(data);
 
     //let monthName = now.toLocaleString('default', { month: 'long' }), year= now.toLocaleDateString('default', {year: 'numeric'});
@@ -118,9 +118,22 @@ export default function JournalIndex() {
     try {
       const currentOffset = isLoadMore ? offset : 0;
       
+      // First, get the Master session (NULL date) separately
+      const { data: masterSession, error: masterError } = await supabase
+        .from('Sessions')
+        .select('id, date, type, description')
+        .is('date', null)
+        .single();
+
+      if (masterError && masterError.code !== 'PGRST116') {
+        console.error('Error fetching master session:', masterError);
+      }
+
+      // Then get regular sessions
       const { data, error } = await supabase
         .from('Sessions')
         .select('id, date, type, description')
+        .not('date', 'is', null)
         .order('date', { ascending: false })
         .range(currentOffset, currentOffset + limit - 1);
 
@@ -129,11 +142,24 @@ export default function JournalIndex() {
         return;
       }
 
+      // Combine master session (if exists) with regular sessions
+      const allSessions = [];
+      if (masterSession) {
+        allSessions.push(masterSession);
+      }
+      if (data) {
+        allSessions.push(...data);
+      }
+
       if (isLoadMore) {
-        setRecentSessions(prev => [...prev, ...(data || [])]);
+        setRecentSessions(prev => {
+          // Remove master session from prev if it exists, then add all new sessions
+          const prevWithoutMaster = prev.filter(session => session.date !== null);
+          return [...prevWithoutMaster, ...(data || [])];
+        });
         setOffset(currentOffset + limit);
       } else {
-        setRecentSessions(data || []);
+        setRecentSessions(allSessions);
         setOffset(limit);
       }
 
@@ -166,19 +192,14 @@ export default function JournalIndex() {
   };
 
   const handleCreateSession = async () => {
-    // Validate date format
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(selectedDate)) {
-      Alert.alert('Invalid Date', 'Please enter a valid date in YYYY-MM-DD format');
-      return;
-    }
+    const dateString = selectedDate.toISOString().split('T')[0];
 
     try {
       const { data, error } = await supabase
         .from('Sessions')
         .insert([
           {
-            date: selectedDate,
+            date: dateString,
             type: selectedType,
             description: sessionDescription,
           }
@@ -193,12 +214,12 @@ export default function JournalIndex() {
 
       // Navigate to journal entry with the new session ID
       if (data && data[0]) {
-        router.push(`/journal-stack/journalEntry?sessionId=${data[0].id}&sessionDate=${selectedDate}&sessionType=${selectedType}`);
+        router.push(`/journal-stack/journalEntry?sessionId=${data[0].id}&sessionDate=${dateString}&sessionType=${selectedType}`);
       }
       
       // Reset modal state and reload sessions
       setShowModal(false);
-      setSelectedDate(new Date().toISOString().split('T')[0]);
+      setSelectedDate(new Date());
       setSelectedType('training');
       setSessionDescription('');
       loadRecentSessions();
@@ -333,7 +354,7 @@ export default function JournalIndex() {
           {recentSessions.map((session) => (
             <TouchableOpacity 
               key={session.id} 
-              style={styles.sessionButton}
+              style={[styles.sessionButton, session.date === null && styles.masterSessionButton]}
               onPress={() => handleSessionPress(session)}
               onLongPress={() => handleDeleteSession(session.id)}
             >
@@ -341,7 +362,7 @@ export default function JournalIndex() {
                 session.description !== null ? (
                   <View>
                     <Text style={styles.sessionButtonText}>
-                      {formatDate(session.date)} - {session.type.charAt(0).toUpperCase() + session.type.slice(1)}
+                      {session.date === null ? 'MASTER' : `${formatDate(session.date)} - ${session.type.charAt(0).toUpperCase() + session.type.slice(1)}`}
                     </Text>
                     <Text style={styles.loadingText}>
                       {session.description}
@@ -349,7 +370,7 @@ export default function JournalIndex() {
                   </View>
                 ) : (
                 <Text style={styles.sessionButtonText}>
-                  {formatDate(session.date)} - {session.type.charAt(0).toUpperCase() + session.type.slice(1)}
+                  {session.date === null ? 'MASTER' : `${formatDate(session.date)} - ${session.type.charAt(0).toUpperCase() + session.type.slice(1)}`}
                 </Text>
                 )
               }
@@ -467,16 +488,21 @@ export default function JournalIndex() {
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>New Session</Text>
               
-              {/* Date Input */}
+              {/* Date Selection */}
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Date:</Text>
-                <TextInput
-                  style={styles.dateInput}
-                  value={selectedDate}
-                  onChangeText={setSelectedDate}
-                  placeholder="YYYY-MM-DD"
-                  keyboardType="numbers-and-punctuation"
-                />
+                <View style={styles.datePicker}>
+                  <DateTimePicker
+                    value={selectedDate}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'default' : 'calendar'}
+                    minimumDate={twoYearsAgo}
+                    maximumDate={today}
+                    onChange={(event, date) => {
+                      if (date) setSelectedDate(date);
+                    }}
+                  />
+                </View>
               </View>
               
               {/* Type Selection */}
@@ -521,7 +547,7 @@ export default function JournalIndex() {
                   style={[styles.modalButton, styles.cancelButton]}
                   onPress={() => {
                     setShowModal(false);
-                    setSelectedDate(new Date().toISOString().split('T')[0]);
+                    setSelectedDate(new Date());
                     setSelectedType('training');
                   }}
                 >
@@ -582,6 +608,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ddd',
   },
+  masterSessionButton: {
+    backgroundColor: '#f0f0f0',
+    borderColor: '#F41A99',
+    borderWidth: 2,
+  },
   sessionButtonText: {
     color: '#333',
     fontSize: 16,
@@ -617,7 +648,7 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   loadMoreButton: {
-    backgroundColor: '#ff9800',
+    backgroundColor: '#F41A99',
     padding: 15,
     borderRadius: 8,
     width: '100%',
@@ -661,14 +692,6 @@ const styles = StyleSheet.create({
   datePicker: {
     margin: 6,
     alignSelf: 'center'
-  },
-  dateInput: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 10,
-    fontSize: 16,
-    color: '#333',
   },
   typeContainer: {
     flexDirection: 'row',

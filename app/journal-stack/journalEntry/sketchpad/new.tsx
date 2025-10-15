@@ -178,10 +178,6 @@ export default function NewSketchScreen() {
     }, [handleAutoSave])
   );
 
-  // Debug: Log the received parameters
-  //console.log('Sketchpad received params:', { actionId, sessionId, allParams: params });
-
-
   const handleTouchStart = (event: GestureResponderEvent) => {
     const { locationX, locationY } = event.nativeEvent;
     if (mode === 'x') {

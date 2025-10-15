@@ -1,6 +1,7 @@
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Keyboard, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { supabase } from '../../../lib/supabase';
 
 interface GymSession {
@@ -12,6 +13,8 @@ interface GymSession {
 export default function GymIndex() {
   const [sessions, setSessions] = useState<GymSession[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(new Date());
 
   const loadSessions = async () => {
     try {
@@ -44,7 +47,14 @@ export default function GymIndex() {
   );
 
   const handleNewSession = () => {
-    router.push('/physical-stack/gym/session');
+    setSelectedDate(new Date());
+    setShowModal(true);
+  };
+
+  const handleCreateSession = () => {
+    const dateString = selectedDate.toISOString().split('T')[0];
+    setShowModal(false);
+    router.push(`/physical-stack/gym/session?sessionDate=${dateString}`);
   };
 
   const handleSessionPress = (session: GymSession) => {
@@ -134,6 +144,55 @@ export default function GymIndex() {
           </Text>
         )}
       </ScrollView>
+
+      {/* New Session Modal */}
+      <Modal
+        visible={showModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowModal(false)}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>New Gym Session</Text>
+              
+              {/* Date Selection */}
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Session Date:</Text>
+                <View style={styles.datePicker}>
+                  <DateTimePicker
+                    value={selectedDate}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'default' : 'calendar'}
+                    minimumDate={new Date('2020-01-01')}
+                    maximumDate={new Date()}
+                    onChange={(event, date) => {
+                      if (date) setSelectedDate(date);
+                    }}
+                  />
+                </View>
+              </View>
+              
+              {/* Action Buttons */}
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.cancelButton]}
+                  onPress={() => setShowModal(false)}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.createButton]}
+                  onPress={handleCreateSession}
+                >
+                  <Text style={styles.createButtonText}>Create Session</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </View>
   );
 }
@@ -220,5 +279,65 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 40,
     fontStyle: 'italic',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 20,
+    width: '80%',
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    color: '#333',
+  },
+  inputContainer: {
+    width: '100%',
+    marginBottom: 15,
+  },
+  inputLabel: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 5,
+    color: '#555',
+  },
+  datePicker: {
+    margin: 6,
+    alignSelf: 'center'
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    marginTop: 20,
+  },
+  modalButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  cancelButton: {
+    backgroundColor: '#ccc',
+  },
+  cancelButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  createButton: {
+    backgroundColor: '#F41A99',
+  },
+  createButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });

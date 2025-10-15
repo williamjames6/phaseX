@@ -3,8 +3,8 @@ import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { OpenAI } from 'openai';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
-import React, { useEffect, useState } from 'react';
-import { Alert, Dimensions, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Alert, Animated, Dimensions, Image, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import useAppState from 'react-native-useappstate';
 import SidebarModal from '../../components/SidebarModal';
 import { useHeaderWithMenu } from '../../hooks/useHeaderWithMenu';
@@ -25,6 +25,7 @@ export default function HomeScreen() {
   const [chatHistory, setChatHistory] = useState<string[]>([]);
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
   const appState = useAppState();
+  const rotationValue = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (appState === 'background') {
@@ -32,6 +33,26 @@ export default function HomeScreen() {
       return;
     }
   }, [appState]);
+
+  // Rotation animation effect
+  useEffect(() => {
+    const startRotation = () => {
+      rotationValue.setValue(0);
+      Animated.loop(
+        Animated.timing(rotationValue, {
+          toValue: 1,
+          duration: 30000, // 30 seconds for 2 RPM (2 rotations per minute)
+          useNativeDriver: true,
+        })
+      ).start();
+    };
+
+    if (chatHistory.length === 0) {
+      startRotation();
+    } else {
+      rotationValue.stopAnimation();
+    }
+  }, [chatHistory.length, rotationValue]);
 
   //make request to openAI API
   const handleSearch = async () => {
@@ -53,7 +74,7 @@ export default function HomeScreen() {
       // Fetch recent actions
       const { data: actions, error } = await supabase
         .from('Actions')
-        .select('description, time_stamp, session_date')
+        .select('description, time_stamp_seconds, session_date')
         .eq('user_id', user.id)
         .order('session_date', { ascending: false })
         .limit(100);
@@ -66,7 +87,7 @@ export default function HomeScreen() {
           //const createdAt = new Date(action.created_at).toLocaleString();
           inputList.push({
             role: 'user',
-            content: `This is the data from the action at ${action.time_stamp} from the session on ${action.session_date}: ${action.description}`
+            content: `This is the data from the action at ${action.time_stamp_seconds} from the session on ${action.session_date}: ${action.description}`
           });
         });
       }
@@ -119,18 +140,49 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-
-      {/* Main Content */}
-      <View style={[styles.moduleContainer, { backgroundColor: "black" }]}>
-        <View style={styles.searchContainer}>
-          <ScrollView style={styles.chatContainer}>
-            {chatHistory.map((message, index) => (
-              <Text key={index} style={styles.chatMessage}>{message}</Text>
-            ))}
-          </ScrollView>
-          <KeyboardAvoidingView 
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-          >
+      <KeyboardAvoidingView 
+        style={styles.keyboardAvoidingView}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 0}
+      >
+        {/* Main Content */}
+        <View style={[styles.moduleContainer, { backgroundColor: "black" }]}>
+          <View style={styles.searchContainer}>
+            <ScrollView 
+              style={styles.chatContainer}
+              contentContainerStyle={styles.chatContentContainer}
+              keyboardShouldPersistTaps="handled"
+            >
+              {chatHistory.length === 0 ? (
+                <View style={styles.animationContainer}>
+                  <Animated.View
+                    style={[
+                      styles.rotatingLogo,
+                      {
+                        transform: [
+                          {
+                            rotateY: rotationValue.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: ['0deg', '360deg'],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  >
+                    <Image
+                      source={require('../../assets/images/onwards.png')}
+                      style={styles.logoImage}
+                      resizeMode="contain"
+                    />
+                  </Animated.View>
+                </View>
+              ) : (
+                chatHistory.map((message, index) => (
+                  <Text key={index} style={styles.chatMessage}>{message}</Text>
+                ))
+              )}
+            </ScrollView>
             <View style={styles.inputContainer}>
               <TextInput
                 placeholder="How do you want to get better today?"
@@ -150,9 +202,9 @@ export default function HomeScreen() {
                 <Ionicons name="arrow-up" size={18} color="#ffffff" />
               </TouchableOpacity>
             </View>
-          </KeyboardAvoidingView>
+          </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
 
       <SidebarModal visible={isSidebarVisible} onClose={() => setIsSidebarVisible(false)} />
     </View>
@@ -164,12 +216,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
+  keyboardAvoidingView: {
+    flex: 1,
+  },
   moduleContainer: {
     width: width,
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 10,
   },
   moduleTitle: {
     fontSize: 24,
@@ -179,15 +234,37 @@ const styles = StyleSheet.create({
   searchContainer: {
     flex: 1,
     width: '100%',
-    justifyContent: 'space-around',
+    justifyContent: 'flex-end',
     alignItems: 'center',
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 10,
     gap: 5,
   },
   chatContainer: {
     flex: 1,
     width: '100%',
     marginBottom: 5,
+    borderRadius: 8,
+  },
+  chatContentContainer: {
+    flexGrow: 1,
+    justifyContent: 'flex-start',
+  },
+  animationContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  rotatingLogo: {
+    width: 120,
+    height: 120,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoImage: {
+    width: '100%',
+    height: '100%',
   },
   chatMessage: {
     fontSize: 16,

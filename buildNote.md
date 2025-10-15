@@ -1,3 +1,4 @@
+**CURRENT BUILD STRATEGY**
 1. Command to bundle for ios from CLI in IDE:
  <<
  npx react-native bundle \
@@ -8,7 +9,12 @@
   --assets-dest ios
  >>   
 
- 2. "Build" in Xcode with desired iOS device selected
+ 2. Manually drag and drop "assets" folder and "main.jsbundle" into xcode "phaseX" project
+
+ 3. "Build" in Xcode with desired iOS device selected
+
+ Potential issues:
+ - Pods and Podfile.lock outdated, need to run "rm -rf Pods Podfile.lock" and then "pod install" to reload (roughly speaking, Cocoapods is to iOS what npm is to JS)
  
 
 **Assorted notes** 
@@ -23,9 +29,9 @@ FIXED- Download modal calendar extend beyond width of modal
 - Physical backend network request failure (expected)
 FIXED?- Session creation modal keybaord input only allows for numbers, problems when you change default date entry
 - Splash screen shows up for ~15s when opening app on iPhone 
-- Add superset button + keyboard sensitive scroll view on gym page
-- Keyboard sensitive scrollview responsive to new line on. Anytime someone is typing, the typing line should be visible just above the keyboard
-- Bug with timestamp because stored as strings, ":" messes with sequential order.
+FIXED- Add superset button + keyboard sensitive scroll view on gym page
+FIXED- Keyboard sensitive scrollview responsive to new line on. Anytime someone is typing, the typing line should be visible just above the keyboard
+FIXED- Bug with timestamp because stored as strings, ":" messes with sequential order.
 
 
 **Features to add**
@@ -33,5 +39,5 @@ IMPLEMENTED- Timestamp entry should be fixed by regex to [0-9]*:[0-9][0-9]. (exp
 IMPLEMENTED- "Note" option should be only text entry (NEED TO IMPLEMENT BACKEND OPERATION FOR NOTE ENTRY, ALTER VALUE SHOWN IN FRONT END OF JOURNALENTRY/INDEX)
 IMPLEMENTED- Sketch functions (eraser, undo, color) (expected)
 IMPLEMENTED- Time scroll for timestamp
-- Arrowhead direction + change dashed arrow + ball + straighten arrows
+IMPLEMENTED- Arrowhead direction + change dashed arrow + ball + straighten arrows
 - Linking with [] and {} for timestamps and other dates

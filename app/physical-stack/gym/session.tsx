@@ -1,6 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '../../../lib/supabase';
 
 interface Exercise {
@@ -22,22 +23,25 @@ interface Session {
 }
 
 export default function GymSession() {
-  const { id } = useLocalSearchParams();
+  const { id, sessionDate } = useLocalSearchParams();
   const [session, setSession] = useState<Session | null>(null);
   const [supersets, setSupersets] = useState<{ [key: number]: Exercise[] }>({});
   const [loading, setLoading] = useState(true);
   const [currentSuperset, setCurrentSuperset] = useState(1);
   const [isNewSession, setIsNewSession] = useState(false);
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const setsScrollViewRefs = useRef<{ [key: string]: ScrollView | null }>({});
+  const inputRefs = useRef<{ [key: string]: TextInput | null }>({});
 
   useEffect(() => {
     if (id) {
+      setCurrentSessionId(id as string);
       loadSession();
     } else {
       // New session - create empty superset
       setIsNewSession(true);
+      setCurrentSessionId(null);
       setSupersets({
         1: [createEmptyExercise(1)]
       });
@@ -45,14 +49,6 @@ export default function GymSession() {
     }
   }, [id]);
 
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-    };
-  }, []);
 
   const createEmptyExercise = (supersetNumber: number, exerciseNumber: number = 1): Exercise => ({
     id: `temp-${Date.now()}-${Math.random()}`,
@@ -66,13 +62,9 @@ export default function GymSession() {
     ]
   });
 
-  const debouncedSave = (exercise: Exercise) => {
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-    }
-    saveTimeoutRef.current = setTimeout(() => {
-      handleSaveExercise(exercise);
-    }, 1000); // Save after 1 second of inactivity
+  const handleSaveExercise = async (exercise: Exercise) => {
+    // Save the entire session data immediately when any exercise is modified
+    await handleSaveSession();
   };
 
   // Helper functions to convert between flat structure and JSONB structure
@@ -222,8 +214,8 @@ export default function GymSession() {
       sessionId = await createSession();
       if (!sessionId) return;
       
-      // Update the URL to include the new session ID
-      router.replace(`/physical-stack/gym/session?id=${sessionId}`);
+      // Update the URL parameters to include the new session ID
+      router.setParams({ id: sessionId });
     }
 
     // Use the target superset number if provided, otherwise use currentSuperset
@@ -251,11 +243,7 @@ export default function GymSession() {
         )
       };
       
-      // Trigger debounced save
-      const exercise = updatedSupersets[supersetNumber].find(ex => ex.id === exerciseId);
-      if (exercise) {
-        debouncedSave(exercise);
-      }
+      // Save will be triggered by onBlur event
       
       return updatedSupersets;
     });
@@ -275,11 +263,7 @@ export default function GymSession() {
         )
       };
       
-      // Trigger debounced save
-      const exercise = updatedSupersets[supersetNumber].find(ex => ex.id === exerciseId);
-      if (exercise) {
-        debouncedSave(exercise);
-      }
+      // Save will be triggered by onBlur event
       
       return updatedSupersets;
     });
@@ -394,27 +378,45 @@ export default function GymSession() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const sessionId = id as string;
       const jsonbData = convertSupersetsToJSONB(supersets);
       
-      const { error } = await supabase
-        .from('GymSessions')
-        .update({ data: jsonbData })
-        .eq('id', sessionId);
-      
-      if (error) throw error;
-      
-      console.log('Session data saved successfully');
+      if (isNewSession) {
+        // Create new session
+        const sessionId = uuidv4();
+        const { data, error } = await supabase
+          .from('GymSessions')
+        .insert({
+          id: sessionId,
+          user_id: user.id,
+          session_date: sessionDate || new Date().toISOString().split('T')[0],
+          data: jsonbData
+        })
+          .select()
+          .single();
+        
+        if (error) throw error;
+        
+        // Update the URL parameters to include the new session ID
+        router.setParams({ id: sessionId });
+        setCurrentSessionId(sessionId);
+        setIsNewSession(false);
+        console.log('New session created successfully');
+      } else {
+        // Update existing session
+        const { error } = await supabase
+          .from('GymSessions')
+          .update({ data: jsonbData })
+          .eq('id', currentSessionId);
+        
+        if (error) throw error;
+        console.log('Session data updated successfully');
+      }
     } catch (error) {
       console.error('Error saving session:', error);
       Alert.alert('Error', 'Failed to save session data');
     }
   };
 
-  const handleSaveExercise = async (exercise: Exercise) => {
-    // With JSONB approach, we save the entire session data
-    handleSaveSession();
-  };
 
 
   const handleAddSuperset = () => {
@@ -436,6 +438,36 @@ export default function GymSession() {
     }, 100);
   };
 
+  const scrollToInput = (inputId: string) => {
+    // Find the superset container that contains this input
+    const supersetEntries = Object.entries(supersets);
+    let targetSupersetIndex = -1;
+    
+    for (let i = 0; i < supersetEntries.length; i++) {
+      const [supersetNum, exercises] = supersetEntries[i];
+      const exercise = exercises.find(ex => ex.id === inputId);
+      if (exercise) {
+        targetSupersetIndex = i;
+        break;
+      }
+    }
+    
+    if (targetSupersetIndex >= 0) {
+      // Calculate scroll position: header (100px) + each superset (~300px) + some padding
+      const headerHeight = 100;
+      const supersetHeight = 300;
+      const estimatedScrollY = headerHeight + (targetSupersetIndex * supersetHeight);
+      
+      // Use a longer delay to ensure keyboard is fully up
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({
+          y: Math.max(0, estimatedScrollY - 100), // Offset to show some context above
+          animated: true
+        });
+      }, 300);
+    }
+  };
+
 
   if (loading) {
     return (
@@ -447,139 +479,173 @@ export default function GymSession() {
 
   return (
     <View style={styles.container}>
-      <ScrollView ref={scrollViewRef} style={styles.scrollView}>
-        {/* Session Header */}
-        <View style={styles.sessionHeader}>
-          <Text style={styles.sessionTitle}>Gym Session</Text>
-          <Text style={styles.sessionDate}>
-            {session?.session_date ? new Date(session.session_date).toLocaleDateString() : 'Today'}
-          </Text>
-        </View>
+      <KeyboardAvoidingView 
+        style={styles.keyboardAvoidingView}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 50 : 0}
+      >
+        <ScrollView 
+          ref={scrollViewRef} 
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollViewContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Session Header */}
+          <View style={styles.sessionHeader}>
+            <Text style={styles.sessionTitle}>Gym Session</Text>
+            <Text style={styles.sessionDate}>
+              {session?.session_date ? new Date(session.session_date).toLocaleDateString() : 'Today'}
+            </Text>
+          </View>
 
-        {/* Supersets */}
-        {Object.entries(supersets).map(([supersetNum, supersetExercises]) => (
-          <View key={supersetNum} style={styles.supersetContainer}>
-            <View style={styles.supersetHeader}>
-              <Text style={styles.supersetTitle}>Superset {supersetNum}</Text>
-              <TouchableOpacity
-                style={styles.deleteSupersetButton}
-                onPress={() => handleDeleteSuperset(parseInt(supersetNum))}
-              >
-                <Text style={styles.deleteSupersetButtonText}>×</Text>
-              </TouchableOpacity>
-            </View>
-            
-            {/* Superset Box */}
-            <View style={styles.supersetBox}>        
+          {/* Supersets */}
+          {Object.entries(supersets).map(([supersetNum, supersetExercises]) => (
+            <View key={supersetNum} style={styles.supersetContainer}>
+              <View style={styles.supersetHeader}>
+                <Text style={styles.supersetTitle}>Superset {supersetNum}</Text>
+                <TouchableOpacity
+                  style={styles.deleteSupersetButton}
+                  onPress={() => handleDeleteSuperset(parseInt(supersetNum))}
+                >
+                  <Text style={styles.deleteSupersetButtonText}>×</Text>
+                </TouchableOpacity>
+              </View>
               
-              {/* Exercise Rows */}
-              {supersetExercises.map((exercise, exerciseIndex) => (
-                <View key={exercise.id} style={styles.exerciseRow}>
-                  {/* Exercise Name Column */}
-                  <View style={styles.exerciseColumn}>
+              {/* Superset Box */}
+              <View style={styles.supersetBox}>        
+                
+                {/* Exercise Rows */}
+                {supersetExercises.map((exercise, exerciseIndex) => (
+                  <View key={exercise.id} style={styles.exerciseRow}>
+                    {/* Exercise Name Column */}
+                    <View style={styles.exerciseColumn}>
                     <TextInput
+                      ref={(ref) => {
+                        if (ref) {
+                          inputRefs.current[`${exercise.id}-name`] = ref;
+                        }
+                      }}
                       style={styles.exerciseNameInput}
                       placeholder="Exercise Name"
                       multiline={true}
                       value={exercise.exercise_name}
                       onChangeText={(value) => handleUpdateExercise(exercise.id, parseInt(supersetNum), 'exercise_name', value)}
+                      onBlur={() => handleSaveExercise(exercise)}
+                      onFocus={() => scrollToInput(exercise.id)}
                     />
-                    {/* Add Exercise Button - Only show on last exercise */}
-                    {exerciseIndex === supersetExercises.length - 1 && (
-                      <TouchableOpacity 
-                        style={styles.addExerciseToSupersetButton} 
-                        onPress={() => handleAddExercise(parseInt(supersetNum))}
+                      {/* Add Exercise Button - Only show on last exercise */}
+                      {exerciseIndex === supersetExercises.length - 1 && (
+                        <TouchableOpacity 
+                          style={styles.addExerciseToSupersetButton} 
+                          onPress={() => handleAddExercise(parseInt(supersetNum))}
+                        >
+                          <Text style={styles.plusSign}>+</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                    
+                    {/* Scrollable Sets Container */}
+                    <View style={styles.setsScrollContainer}>
+                      <ScrollView 
+                        horizontal 
+                        style={styles.setsScrollView}
+                        showsHorizontalScrollIndicator={false}
+                        ref={(ref) => {
+                          if (ref) {
+                            setsScrollViewRefs.current[exercise.id] = ref;
+                          }
+                        }}
                       >
-                        <Text style={styles.plusSign}>+</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                  
-                  {/* Scrollable Sets Container */}
-                  <View style={styles.setsScrollContainer}>
-                    <ScrollView 
-                      horizontal 
-                      style={styles.setsScrollView}
-                      showsHorizontalScrollIndicator={false}
-                      ref={(ref) => {
-                        if (ref) {
-                          setsScrollViewRefs.current[exercise.id] = ref;
-                        }
-                      }}
-                    >
-                      <View style={styles.setsContainer}>
-                      {exercise.sets.map((set, setIndex) => (
-                        <View key={setIndex} style={styles.setColumn}>
-                          <View style={styles.setInputs}>
+                        <View style={styles.setsContainer}>
+                        {exercise.sets.map((set, setIndex) => (
+                          <View key={setIndex} style={styles.setColumn}>
+                            <View style={styles.setInputs}>
                             <TextInput
+                              ref={(ref) => {
+                                if (ref) {
+                                  inputRefs.current[`${exercise.id}-${setIndex}-reps`] = ref;
+                                }
+                              }}
                               style={styles.setInput}
                               placeholder="Reps"
                               value={set.reps?.toString() || ''}
                               onChangeText={(value) => handleUpdateSet(exercise.id, parseInt(supersetNum), setIndex, 'reps', value ? parseInt(value) : null)}
+                              onBlur={() => handleSaveExercise(exercise)}
+                              onFocus={() => scrollToInput(exercise.id)}
                               keyboardType="numeric"
                             />
                             <TextInput
+                              ref={(ref) => {
+                                if (ref) {
+                                  inputRefs.current[`${exercise.id}-${setIndex}-weight`] = ref;
+                                }
+                              }}
                               style={styles.setInput}
                               placeholder="Weight"
                               value={set.weight?.toString() || ''}
                               onChangeText={(value) => handleUpdateSet(exercise.id, parseInt(supersetNum), setIndex, 'weight', value ? parseFloat(value) : null)}
+                              onBlur={() => handleSaveExercise(exercise)}
+                              onFocus={() => scrollToInput(exercise.id)}
                               keyboardType="numeric"
                             />
                             <TextInput
+                              ref={(ref) => {
+                                if (ref) {
+                                  inputRefs.current[`${exercise.id}-${setIndex}-time`] = ref;
+                                }
+                              }}
                               style={styles.setInput}
                               placeholder="Time"
                               value={set.time?.toString() || ''}
                               onChangeText={(value) => handleUpdateSet(exercise.id, parseInt(supersetNum), setIndex, 'time', value ? parseFloat(value) : null)}
+                              onBlur={() => handleSaveExercise(exercise)}
+                              onFocus={() => scrollToInput(exercise.id)}
                               keyboardType="numeric"
                             />
+                            </View>
+                            {/* Remove Set Button */}
+                            {exercise.sets.length > 1 && (
+                              <TouchableOpacity
+                                style={styles.removeSetButton}
+                                onPress={() => handleRemoveSet(exercise.id, parseInt(supersetNum), setIndex)}
+                              >
+                                <Text style={styles.removeSetButtonText}>−</Text>
+                              </TouchableOpacity>
+                            )}
                           </View>
-                          {/* Remove Set Button */}
-                          {exercise.sets.length > 1 && (
-                            <TouchableOpacity
-                              style={styles.removeSetButton}
-                              onPress={() => handleRemoveSet(exercise.id, parseInt(supersetNum), setIndex)}
-                            >
-                              <Text style={styles.removeSetButtonText}>−</Text>
-                            </TouchableOpacity>
-                          )}
+                        ))}
+                        {/* Add Set Button */}
+                        <TouchableOpacity
+                          style={styles.addSetButton}
+                          onPress={() => handleAddSet(exercise.id, parseInt(supersetNum))}
+                        >
+                          <Text style={styles.addSetButtonText}>+</Text>
+                        </TouchableOpacity>
                         </View>
-                      ))}
-                      {/* Add Set Button */}
+                      </ScrollView>
+                    </View>
+                    
+                    {/* Exercise Action Buttons */}
+                    {/* <View style={styles.exerciseActionButtons}>
                       <TouchableOpacity
-                        style={styles.addSetButton}
-                        onPress={() => handleAddSet(exercise.id, parseInt(supersetNum))}
+                        style={styles.removeExerciseButton}
+                        onPress={() => handleRemoveExercise(exercise.id, parseInt(supersetNum))}
                       >
-                        <Text style={styles.addSetButtonText}>+</Text>
+                        <Text style={styles.removeExerciseButtonText}>−</Text>
                       </TouchableOpacity>
-                      </View>
-                    </ScrollView>
+                    </View> */}
                   </View>
-                  
-                  {/* Exercise Action Buttons */}
-                  {/* <View style={styles.exerciseActionButtons}>
-                    <TouchableOpacity
-                      style={styles.removeExerciseButton}
-                      onPress={() => handleRemoveExercise(exercise.id, parseInt(supersetNum))}
-                    >
-                      <Text style={styles.removeExerciseButtonText}>−</Text>
-                    </TouchableOpacity>
-                  </View> */}
-                </View>
-              ))}
+                ))}
+              </View>
             </View>
-          </View>
-        ))}
-      </ScrollView>
-      
-      {/* Add Superset Button - Pinned to bottom right */}
-      {/* <View style={styles.bottomButtonsContainer}>
+          ))}
+        </ScrollView>
+        
+        {/* Add Superset Button - Pinned to bottom right */}
         <TouchableOpacity style={styles.addSupersetButton} onPress={handleAddSuperset}>
-          <Text style={styles.plusSign}>+</Text>
+            <Text style={styles.plusSign}>+</Text>
         </TouchableOpacity>
-      </View> */}
-      <TouchableOpacity style={styles.addSupersetButton} onPress={handleAddSuperset}>
-          <Text style={styles.plusSign}>+</Text>
-      </TouchableOpacity>
+      </KeyboardAvoidingView>
     </View>
   );
 }
@@ -589,10 +655,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000000',
   },
+  keyboardAvoidingView: {
+    flex: 1,
+  },
   scrollView: {
     flex: 1,
+  },
+  scrollViewContent: {
     padding: 16,
-    paddingBottom: 50, // Extra padding to ensure plus button doesn't overlap content
+    paddingBottom: 100, // Extra padding to ensure plus button doesn't overlap content
   },
   sessionHeader: {
     backgroundColor: '#000000',
