@@ -1,6 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import React from 'react';
+import { router, usePathname } from 'expo-router';
 import { Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 
@@ -10,6 +9,7 @@ interface SidebarModalProps {
 }
 
 export default function SidebarModal({ visible, onClose }: SidebarModalProps) {
+  const pathName = usePathname();
 
   const handleLogout = async () => {
     try {
@@ -28,7 +28,12 @@ export default function SidebarModal({ visible, onClose }: SidebarModalProps) {
 
   const handleNavigation = (route: string) => {
     onClose();
-    router.push(route);
+    if (pathName === route) {
+      return;
+    } else {
+      router.push(route);
+    }
+    // router.push(route);
   };
 
   return (

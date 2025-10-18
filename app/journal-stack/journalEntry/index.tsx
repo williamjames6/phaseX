@@ -1,6 +1,8 @@
 import { Picker } from '@react-native-picker/picker';
+import Constants from 'expo-constants';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import { OpenAI } from 'openai';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Dimensions, Image, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
@@ -16,7 +18,7 @@ interface Action {
 const { width, height } = Dimensions.get('window');
 const MINUTE_OPTIONS = Array.from({ length: 301 }, (_, index) => index);
 const SECOND_OPTIONS = Array.from({ length: 12 }, (_, index) => index * 5);
-//timeSwtich function only called when sending or receiving data from the database. All frontend operations
+//timeSwitch function only called when sending or receiving data from the database. All frontend operations
 //use string format for timestamp. Backend stores as number of seconds.
 const timeSwitch = (time: string | number) => {
   if (typeof time === 'number') {
@@ -28,6 +30,11 @@ const timeSwitch = (time: string | number) => {
     return minutes * 60 + seconds;
   }
 }
+
+const client = new OpenAI({
+  apiKey: Constants.expoConfig?.extra?.openaiApiKey,
+  dangerouslyAllowBrowser: true // Required for Expo/React Native
+});
 
 export default function JournalEntryIndex() {
   const { sessionId, sessionDate, sessionType } = useLocalSearchParams();
@@ -153,6 +160,13 @@ export default function JournalEntryIndex() {
     }
     
     try {
+
+      const response = await client.embeddings.create({
+        model: "text-embedding-3-small",
+        input: action.description,
+      });
+
+      if (!response) return;
       // Handle note type sessions differently
       if (sessionType === "note") {
         // For note sessions, only save id, description, and sketch_id
@@ -161,6 +175,7 @@ export default function JournalEntryIndex() {
           session_id: sessionId,
           description: action.description,
           sketch_id: action.sketch_id,
+          description_embedding: response.data[0].embedding,
           time_stamp_seconds: null, // Explicitly set to null for note actions
           ...(sessionDate && sessionDate !== 'null' ? { session_date: sessionDate } : {})
         };
@@ -187,6 +202,7 @@ export default function JournalEntryIndex() {
           session_id: sessionId,
           time_stamp_seconds: timeSwitch(action.timestamp),
           description: action.description,
+          description_embedding: response.data[0].embedding,
           sketch_id: action.sketch_id,
           ...(isMasterSession ? {} : { session_date: sessionDate })
         };

@@ -3,7 +3,7 @@ import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { OpenAI } from 'openai';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, Dimensions, Image, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import useAppState from 'react-native-useappstate';
 import SidebarModal from '../../components/SidebarModal';
@@ -19,6 +19,7 @@ const client = new OpenAI({
   dangerouslyAllowBrowser: true // Required for Expo/React Native
 });
 
+
 export default function HomeScreen() {
   const [query, setQuery] = useState('');
   const [response, setResponse] = useState('');
@@ -26,12 +27,26 @@ export default function HomeScreen() {
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
   const appState = useAppState();
   const rotationValue = useRef(new Animated.Value(0)).current;
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    if (appState === 'background') {
-      router.replace('/');
-      return;
-    }
+      if (appState === 'background') {
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+        };
+        timeoutRef.current = setTimeout(() => {
+          router.replace('/');
+          return;
+        }, 10000);
+
+
+      } else if (appState === 'active') {
+        // Clear timeout when app becomes active
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
+        }
+      }
   }, [appState]);
 
   // Rotation animation effect
@@ -70,6 +85,27 @@ export default function HomeScreen() {
 
       // Add user's query to chat history
       setChatHistory(prev => [...prev, `You: ${query}`]);
+
+      //calculate query embedding
+      const response = await client.embeddings.create({
+      model: "text-embedding-3-small",
+      input: query,
+      });
+      const embedding = Array.from(response.data[0].embedding);
+      const ar = [1, 2, 3];
+      console.log(typeof(embedding), embedding);
+      console.log(typeof(ar));
+      if (response && response.data[0].embedding && response.data[0].embedding.length === 1536) {
+        const { data, error } = await supabase.rpc('search_similar_actions', {
+          query_embedding: embedding,
+          match_threshold: 0.5, // Adjust threshold (0-1, higher = more similar)
+          match_count: 15 // Number of results to return
+        });
+
+        if (error) throw error;
+
+        console.log(data);
+      }
 
       // Fetch recent actions
       const { data: actions, error } = await supabase

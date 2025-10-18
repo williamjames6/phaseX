@@ -5,6 +5,9 @@
       location = "group:phaseX.xcodeproj">
    </FileRef>
    <FileRef
+      location = "group:main.jsbundle">
+   </FileRef>
+   <FileRef
       location = "group:Pods/Pods.xcodeproj">
    </FileRef>
 </Workspace>
