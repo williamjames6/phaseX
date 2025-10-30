@@ -11,7 +11,7 @@
 
  2. Manually drag and drop "assets" folder and "main.jsbundle" into xcode "phaseX" project
 
- 3. "Build" in Xcode with desired iOS device selected
+ 3. "Build" in Xcode with desired iOS device selected ( use the .xcworkspace, not .xcodeproj)
 
  Potential issues:
  - Pods and Podfile.lock outdated, need to run "rm -rf Pods Podfile.lock" and then "pod install" to reload (roughly speaking, Cocoapods is to iOS what npm is to JS)
@@ -32,6 +32,7 @@ FIXED?- Session creation modal keybaord input only allows for numbers, problems 
 FIXED- Add superset button + keyboard sensitive scroll view on gym page
 FIXED- Keyboard sensitive scrollview responsive to new line on. Anytime someone is typing, the typing line should be visible just above the keyboard
 FIXED- Bug with timestamp because stored as strings, ":" messes with sequential order.
+- Run timeSwitch() on timestamp of actions before appending to chat query
 
 
 **Features to add**

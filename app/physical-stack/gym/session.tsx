@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '../../../lib/supabase';
 
@@ -33,6 +33,7 @@ export default function GymSession() {
   const scrollViewRef = useRef<ScrollView>(null);
   const setsScrollViewRefs = useRef<{ [key: string]: ScrollView | null }>({});
   const inputRefs = useRef<{ [key: string]: TextInput | null }>({});
+  const supersetPositionYRef = useRef<{ [key: string]: number }>({});
 
   useEffect(() => {
     if (id) {
@@ -65,6 +66,40 @@ export default function GymSession() {
   const handleSaveExercise = async (exercise: Exercise) => {
     // Save the entire session data immediately when any exercise is modified
     await handleSaveSession();
+  };
+
+  const saveSessionWithSupersets = async (nextSupersets: { [key: number]: Exercise[] }) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const jsonbData = convertSupersetsToJSONB(nextSupersets);
+
+      if (isNewSession) {
+        const sessionId = uuidv4();
+        const { error } = await supabase
+          .from('GymSessions')
+          .insert({
+            id: sessionId,
+            user_id: user.id,
+            session_date: sessionDate || new Date().toISOString().split('T')[0],
+            data: jsonbData
+          });
+        if (error) throw error;
+        router.setParams({ id: sessionId });
+        setCurrentSessionId(sessionId);
+        setIsNewSession(false);
+      } else {
+        const { error } = await supabase
+          .from('GymSessions')
+          .update({ data: jsonbData })
+          .eq('id', currentSessionId);
+        if (error) throw error;
+      }
+    } catch (error) {
+      console.error('Error saving session after deletion:', error);
+      Alert.alert('Error', 'Failed to delete exercise');
+    }
   };
 
   // Helper functions to convert between flat structure and JSONB structure
@@ -312,15 +347,26 @@ export default function GymSession() {
   };
 
   const handleRemoveExercise = (exerciseId: string, supersetNumber: number) => {
-    setSupersets(prev => ({
-      ...prev,
-      [supersetNumber]: prev[supersetNumber].filter(ex => ex.id !== exerciseId)
-    }));
-    
-    // Auto-save after removing exercise
-    setTimeout(() => {
-      handleSaveSession();
-    }, 100);
+    setSupersets(prev => {
+      const next = {
+        ...prev,
+        [supersetNumber]: prev[supersetNumber].filter(ex => ex.id !== exerciseId)
+      };
+      // Persist updated supersets immediately
+      saveSessionWithSupersets(next);
+      return next;
+    });
+  };
+
+  const handleLongPressExercise = (exerciseId: string, supersetNumber: number) => {
+    Alert.alert(
+      'Delete Exercise',
+      'Are you sure you want to delete this exercise from the superset?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => handleRemoveExercise(exerciseId, supersetNumber) },
+      ]
+    );
   };
 
   const handleDeleteSuperset = async (supersetNumber: number) => {
@@ -384,7 +430,7 @@ export default function GymSession() {
         // Create new session
         const sessionId = uuidv4();
         const { data, error } = await supabase
-          .from('GymSessions')
+        .from('GymSessions')
         .insert({
           id: sessionId,
           user_id: user.id,
@@ -409,7 +455,6 @@ export default function GymSession() {
           .eq('id', currentSessionId);
         
         if (error) throw error;
-        console.log('Session data updated successfully');
       }
     } catch (error) {
       console.error('Error saving session:', error);
@@ -439,32 +484,35 @@ export default function GymSession() {
   };
 
   const scrollToInput = (inputId: string) => {
+
+    // console.log(scrollViewRef.current?.getNativeScrollRef());
+    // console.log("BBBBBBBBBBBBBBBBB");
+    //console.log(scrollViewRef.current);
     // Find the superset container that contains this input
     const supersetEntries = Object.entries(supersets);
-    let targetSupersetIndex = -1;
+    let targetSupersetKey: string | null = null;
     
     for (let i = 0; i < supersetEntries.length; i++) {
       const [supersetNum, exercises] = supersetEntries[i];
       const exercise = exercises.find(ex => ex.id === inputId);
       if (exercise) {
-        targetSupersetIndex = i;
+        targetSupersetKey = supersetNum;
         break;
       }
     }
     
-    if (targetSupersetIndex >= 0) {
-      // Calculate scroll position: header (100px) + each superset (~300px) + some padding
-      const headerHeight = 100;
-      const supersetHeight = 300;
-      const estimatedScrollY = headerHeight + (targetSupersetIndex * supersetHeight);
-      
-      // Use a longer delay to ensure keyboard is fully up
+    if (targetSupersetKey) {
+      // Prefer measured Y position over estimates
+      const y = supersetPositionYRef.current[targetSupersetKey];
+      const targetY = typeof y === 'number' ? Math.max(0, y - 80) : null;
+
+      // Use a short delay to ensure keyboard is fully up
       setTimeout(() => {
         scrollViewRef.current?.scrollTo({
-          y: Math.max(0, estimatedScrollY - 100), // Offset to show some context above
+          y: targetY ?? 0,
           animated: true
         });
-      }, 300);
+      }, 250);
     }
   };
 
@@ -482,13 +530,15 @@ export default function GymSession() {
       <KeyboardAvoidingView 
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 50 : 0}
+        //keyboardVerticalOffset={Platform.OS === "ios" ? 200 : 0}
       >
         <ScrollView 
           ref={scrollViewRef} 
           style={styles.scrollView}
           contentContainerStyle={styles.scrollViewContent}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          automaticallyAdjustKeyboardInsets={true}
         >
           {/* Session Header */}
           <View style={styles.sessionHeader}>
@@ -500,7 +550,13 @@ export default function GymSession() {
 
           {/* Supersets */}
           {Object.entries(supersets).map(([supersetNum, supersetExercises]) => (
-            <View key={supersetNum} style={styles.supersetContainer}>
+            <View
+              key={supersetNum}
+              style={styles.supersetContainer}
+              onLayout={(e) => {
+                supersetPositionYRef.current[supersetNum] = e.nativeEvent.layout.y;
+              }}
+            >
               <View style={styles.supersetHeader}>
                 <Text style={styles.supersetTitle}>Superset {supersetNum}</Text>
                 <TouchableOpacity
@@ -516,23 +572,28 @@ export default function GymSession() {
                 
                 {/* Exercise Rows */}
                 {supersetExercises.map((exercise, exerciseIndex) => (
-                  <View key={exercise.id} style={styles.exerciseRow}>
+                  <Pressable
+                    key={exercise.id}
+                    style={styles.exerciseRow}
+                    onLongPress={() => handleLongPressExercise(exercise.id, parseInt(supersetNum))}
+                    delayLongPress={500}
+                  >
                     {/* Exercise Name Column */}
                     <View style={styles.exerciseColumn}>
-                    <TextInput
-                      ref={(ref) => {
-                        if (ref) {
-                          inputRefs.current[`${exercise.id}-name`] = ref;
-                        }
-                      }}
-                      style={styles.exerciseNameInput}
-                      placeholder="Exercise Name"
-                      multiline={true}
-                      value={exercise.exercise_name}
-                      onChangeText={(value) => handleUpdateExercise(exercise.id, parseInt(supersetNum), 'exercise_name', value)}
-                      onBlur={() => handleSaveExercise(exercise)}
-                      onFocus={() => scrollToInput(exercise.id)}
-                    />
+                      <TextInput
+                        ref={(ref) => {
+                          if (ref) {
+                            inputRefs.current[`${exercise.id}-name`] = ref;
+                          }
+                        }}
+                        style={styles.exerciseNameInput}
+                        placeholder="Exercise Name"
+                        multiline={true}
+                        value={exercise.exercise_name}
+                        onChangeText={(value) => handleUpdateExercise(exercise.id, parseInt(supersetNum), 'exercise_name', value)}
+                        onBlur={() => handleSaveExercise(exercise)}
+                        onFocus={() => scrollToInput(exercise.id)}
+                      />
                       {/* Add Exercise Button - Only show on last exercise */}
                       {exerciseIndex === supersetExercises.length - 1 && (
                         <TouchableOpacity 
@@ -571,7 +632,6 @@ export default function GymSession() {
                               value={set.reps?.toString() || ''}
                               onChangeText={(value) => handleUpdateSet(exercise.id, parseInt(supersetNum), setIndex, 'reps', value ? parseInt(value) : null)}
                               onBlur={() => handleSaveExercise(exercise)}
-                              onFocus={() => scrollToInput(exercise.id)}
                               keyboardType="numeric"
                             />
                             <TextInput
@@ -585,7 +645,6 @@ export default function GymSession() {
                               value={set.weight?.toString() || ''}
                               onChangeText={(value) => handleUpdateSet(exercise.id, parseInt(supersetNum), setIndex, 'weight', value ? parseFloat(value) : null)}
                               onBlur={() => handleSaveExercise(exercise)}
-                              onFocus={() => scrollToInput(exercise.id)}
                               keyboardType="numeric"
                             />
                             <TextInput
@@ -599,7 +658,6 @@ export default function GymSession() {
                               value={set.time?.toString() || ''}
                               onChangeText={(value) => handleUpdateSet(exercise.id, parseInt(supersetNum), setIndex, 'time', value ? parseFloat(value) : null)}
                               onBlur={() => handleSaveExercise(exercise)}
-                              onFocus={() => scrollToInput(exercise.id)}
                               keyboardType="numeric"
                             />
                             </View>
@@ -634,7 +692,7 @@ export default function GymSession() {
                         <Text style={styles.removeExerciseButtonText}>−</Text>
                       </TouchableOpacity>
                     </View> */}
-                  </View>
+                  </Pressable>
                 ))}
               </View>
             </View>

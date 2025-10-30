@@ -1,3 +1,4 @@
+import { timeSwitch } from '@/assets/helpers/timeSwtich';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
@@ -37,7 +38,7 @@ export default function HomeScreen() {
         timeoutRef.current = setTimeout(() => {
           router.replace('/');
           return;
-        }, 10000);
+        }, 300000);
 
 
       } else if (appState === 'active') {
@@ -92,38 +93,36 @@ export default function HomeScreen() {
       input: query,
       });
       const embedding = Array.from(response.data[0].embedding);
-      const ar = [1, 2, 3];
-      console.log(typeof(embedding), embedding);
-      console.log(typeof(ar));
-      if (response && response.data[0].embedding && response.data[0].embedding.length === 1536) {
+      let similarActions = [];
+      if (embedding.length === 1536) {
         const { data, error } = await supabase.rpc('search_similar_actions', {
           query_embedding: embedding,
-          match_threshold: 0.5, // Adjust threshold (0-1, higher = more similar)
+          //match_threshold: 0.5, // Adjust threshold (0-1, higher = more similar)
           match_count: 15 // Number of results to return
         });
 
-        if (error) throw error;
+        similarActions = data; //list of objects
 
-        console.log(data);
+        if (error) throw error;
       }
 
       // Fetch recent actions
-      const { data: actions, error } = await supabase
-        .from('Actions')
-        .select('description, time_stamp_seconds, session_date')
-        .eq('user_id', user.id)
-        .order('session_date', { ascending: false })
-        .limit(100);
+      // const { data: actions, error } = await supabase
+      //   .from('Actions')
+      //   .select('description, time_stamp_seconds, session_date')
+      //   .eq('user_id', user.id)
+      //   .order('session_date', { ascending: false })
+      //   .limit(100);
 
-      if (error) throw error;
+      // if (error) throw error;
 
       // Populate inputList with sketch descriptions
-      if (actions) {
-        actions.forEach((action, index) => {
-          //const createdAt = new Date(action.created_at).toLocaleString();
+      if (similarActions) {
+        similarActions.forEach((action: { time_stamp_seconds: any; session_date: any; description: any; }) => {
+          console.log(action);
           inputList.push({
             role: 'user',
-            content: `This is the data from the action at ${action.time_stamp_seconds} from the session on ${action.session_date}: ${action.description}`
+            content: `This is the data from the action at ${timeSwitch(action.time_stamp_seconds)} from the session on ${action.session_date}: ${action.description}`
           });
         });
       }
