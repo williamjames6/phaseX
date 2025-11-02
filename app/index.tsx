@@ -1,6 +1,5 @@
 import * as LocalAuthentication from 'expo-local-authentication';
 import { router, useLocalSearchParams } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, Keyboard, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { v4 as uuidv4 } from 'uuid';
@@ -12,13 +11,19 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const fromRegister = useLocalSearchParams().fromRegister;
   
-  
   // Animation values
   const loginOpacity = useRef(new Animated.Value(0)).current;
   const loginTranslateY = useRef(new Animated.Value(50)).current;
+  const hasRunRef = useRef(false);
 
   // Start animation sequence and auto faceID login on component mount
   useEffect(() => {
+    // Prevent double execution in development (React Strict Mode) or on remount
+    if (hasRunRef.current) {
+      return;
+    }
+    hasRunRef.current = true;
+
     const startAnimation = () => {
       return new Promise((resolve) => {
         Animated.parallel([
@@ -70,15 +75,9 @@ export default function LoginScreen() {
         return;
       };
       if (result && data?.session?.refresh_token && data?.session?.access_token) {
-        await SecureStore.setItemAsync('refresh_token', data.session.refresh_token);
-        await SecureStore.setItemAsync('access_token', data.session.access_token);
         router.replace('/home');
         return;
       };
-      const refreshToken = await SecureStore.getItemAsync('refresh_token');
-      const accessToken = await SecureStore.getItemAsync('access_token');
-      console.log(refreshToken);
-      console.log(accessToken);
     } catch (error) {
       Alert.alert('Error');
     }
@@ -94,10 +93,6 @@ export default function LoginScreen() {
         Alert.alert('Session data not returned from login');
         return;
       }
-      console.log("Tokens from normal login: ", data.session.refresh_token, data.session.access_token);
-      await SecureStore.setItemAsync('refresh_token', data.session.refresh_token);
-      await SecureStore.setItemAsync('access_token', data.session.access_token);
-
       if (fromRegister) {
               // Create Master session for the newly registered user
         if (data.user) {

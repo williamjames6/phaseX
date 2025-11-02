@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Alert, Dimensions, Image, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
+import { timeSwitch } from '../../../assets/helpers/timeSwitch';
 import { supabase } from '../../../lib/supabase';
 
 interface Action {
@@ -14,22 +15,14 @@ interface Action {
   description: string;
   dbId: string; // Store the actual database UUID for submitted actions
   sketch_id: string; // Store sketch ID that needs to be linked when action is submitted
+  physical_score?: number; // For training sessions (1-10)
+  mental_score?: number; // For training sessions (1-10)
+  overall_score?: number; // For training sessions (1-10)
 }
 const { width, height } = Dimensions.get('window');
 const MINUTE_OPTIONS = Array.from({ length: 301 }, (_, index) => index);
 const SECOND_OPTIONS = Array.from({ length: 12 }, (_, index) => index * 5);
-//timeSwitch function only called when sending or receiving data from the database. All frontend operations
-//use string format for timestamp. Backend stores as number of seconds.
-const timeSwitch = (time: string | number) => {
-  if (typeof time === 'number') {
-    const minutes = Math.floor(time / 60);
-    const seconds = time % 60 < 10 ? `0${time % 60}` : time % 60;
-    return `${minutes}:${seconds}`;
-  } else {
-    const [minutes, seconds] = time.split(':').map(Number);
-    return minutes * 60 + seconds;
-  }
-}
+
 
 const client = new OpenAI({
   apiKey: Constants.expoConfig?.extra?.openaiApiKey,
@@ -50,6 +43,7 @@ export default function JournalEntryIndex() {
   const [selectedMinutes, setSelectedMinutes] = useState(0);
   const [selectedSeconds, setSelectedSeconds] = useState(0);
   const [focusedTextInputId, setFocusedTextInputId] = useState<number | null>(null);
+  let actionAdder = 0;
   //const [dbTime, setDbTime] = useState(0);
 
 
@@ -89,6 +83,53 @@ export default function JournalEntryIndex() {
             sketch_id: uuidv4(),
           }
           existingActions.push(starterAction) 
+        }
+        
+        setActions(existingActions);
+        setNextId(Math.abs(existingActions.length) + 1);
+      } else if (sessionType === "training") {
+        // Load training session scores and actions
+        const { data: sessionData, error: sessionError } = await supabase
+          .from('Sessions')
+          .select('physical_score, mental_score, overall_score')
+          .eq('id', sessionId)
+          .single();
+
+        const { data: actionsData, error: actionsError } = await supabase
+          .from('Actions')
+          .select('id, time_stamp_seconds, description, sketch_id')
+          .eq('session_id', sessionId)
+          .order('time_stamp_seconds', { ascending: true });
+
+        if (actionsError) {
+          console.error('Error loading actions:', actionsError);
+          return;
+        }
+
+        // Create first action with training scores
+        const firstAction: Action = {
+          id: -1,
+          timestamp: "",
+          description: "",
+          dbId: uuidv4(),
+          sketch_id: uuidv4(),
+          physical_score: sessionData?.physical_score || undefined,
+          mental_score: sessionData?.mental_score || undefined,
+          overall_score: sessionData?.overall_score || undefined,
+        };
+
+        // Convert database actions to local action format
+        const existingActions: Action[] = [firstAction];
+        
+        if (actionsData && actionsData.length > 0) {
+          const otherActions: Action[] = actionsData.map((dbAction, index) => ({
+            id: -(index + 2), // Start from -2 since -1 is the first action
+            timestamp: timeSwitch(dbAction.time_stamp_seconds),
+            description: dbAction.description,
+            dbId: dbAction.id,
+            sketch_id: dbAction.sketch_id
+          }));
+          existingActions.push(...otherActions);
         }
         
         setActions(existingActions);
@@ -151,6 +192,7 @@ export default function JournalEntryIndex() {
     };
     setActions([...actions, newAction]);
     setNextId(nextId + 1);
+    actionAdder++;
   };
 
   const handleSubmitAction = async (action: Action, fromTimeStamp: boolean) => {
@@ -277,12 +319,52 @@ export default function JournalEntryIndex() {
         scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 100); // Small delay to ensure the new action is rendered
     }
-  }, [actions.length]);
+  }, [actionAdder]);
 
-  const updateAction = (id: number, field: 'timestamp' | 'description', value: string) => {
+  const updateAction = (id: number, field: 'timestamp' | 'description' | 'physical_score' | 'mental_score' | 'overall_score', value: string | number) => {
+    // For score fields, validate and convert to number (1-10)
+    if (field === 'physical_score' || field === 'mental_score' || field === 'overall_score') {
+      if (value === '' || value === null || value === undefined) {
+        // Allow clearing the value
+        setActions(actions.map(action => 
+          action.id === id ? { ...action, [field]: undefined } : action
+        ));
+        return;
+      }
+      const numValue = typeof value === 'string' ? parseInt(value, 10) : value;
+      if (isNaN(numValue) || numValue < 1 || numValue > 10) {
+        return; // Don't update if invalid
+      }
+      setActions(actions.map(action => 
+        action.id === id ? { ...action, [field]: numValue } : action
+      ));
+      return;
+    }
+    // For other fields, update as string
     setActions(actions.map(action => 
       action.id === id ? { ...action, [field]: value } : action
     ));
+  };
+
+  const handleSaveTrainingScores = async (action: Action) => {
+    if (!sessionId) return;
+    
+    try {
+      const { error } = await supabase
+        .from('Sessions')
+        .update({
+          physical_score: action.physical_score || null,
+          mental_score: action.mental_score || null,
+          overall_score: action.overall_score || null,
+        })
+        .eq('id', sessionId);
+      
+      if (error) {
+        console.error('Error saving training scores:', error);
+      }
+    } catch (error) {
+      console.error('Error saving training scores:', error);
+    }
   };
 
   const scrollToTextInput = (actionId: number) => {
@@ -421,6 +503,7 @@ export default function JournalEntryIndex() {
     </View>
     
     : 
+    
     <View style={styles.container}>
       
       {/* <KeyboardAwareScrollView> */}
@@ -431,48 +514,110 @@ export default function JournalEntryIndex() {
         contentContainerStyle={styles.scrollContent}
         automaticallyAdjustKeyboardInsets={true}
       >
-        {actions.map((action) => (
+        {actions.map((action, index) => (
           <View key={action.id} style={styles.actionContainer}>
-            <View style={styles.inputsRow}>
-              <TouchableOpacity
-                style={styles.timestampInput}
-                onPress={() => openPickerForAction(action)}
-              >
-                <Text style={[styles.timestampText, !action.timestamp && styles.timestampPlaceholder]}>
-                  {action.timestamp || '00:00'}
-                </Text>
-              </TouchableOpacity>
-              <TextInput
-                style={styles.descriptionInput}
-                placeholder="Description of action..."
-                value={action.description}
-                onChangeText={(value) => updateAction(action.id, 'description', value)}
-                placeholderTextColor="#999"
-                multiline={true}
-                //scrollEnabled={false}
-                onBlur={() => handleSubmitAction(action, false)}
-              />
-              <View style={styles.buttonColumn}>
-                <TouchableOpacity 
-                  style={styles.sketchButton}
-                  onPress={() => handleSketchAction(action)}
-                >
-                  <Image
-                    source={require('../../../assets/images/onwards.png')}
-                    style={styles.sketchButtonIcon}
+            {sessionType !== "other" && index === 0 ? (
+              <View style={styles.trainingInputsRow}>
+                <View style={styles.trainingInputContainer}>
+                  <Text style={styles.trainingInputLabel}>Physical</Text>
+                  <TextInput
+                    style={styles.trainingInputCircle}
+                    placeholder=""
+                    value={action.physical_score?.toString() || ''}
+                    onChangeText={(value) => {
+                      // Only allow single digits 1-10
+                      if (value === '' || (value.length === 1 && /^[1-9]$/.test(value)) || (value.length === 2 && value === '10')) {
+                        updateAction(action.id, 'physical_score', value);
+                      }
+                    }}
+                    placeholderTextColor="#999"
+                    keyboardType="numeric"
+                    maxLength={2}
+                    textAlign="center"
+                    onBlur={() => handleSaveTrainingScores(action)}
                   />
-                </TouchableOpacity>
-                <TouchableOpacity 
-                style={styles.sketchButton}
-                onPress={() => handleDeleteAction(action)}
-                >
-                <Image
-                  source={require('../../../assets/images/trash.png')}
-                  style={styles.deleteButtonIcon}
-                />
-                </TouchableOpacity>
+                </View>
+                <View style={styles.trainingInputContainer}>
+                  <Text style={styles.trainingInputLabel}>Mental</Text>
+                  <TextInput
+                    style={styles.trainingInputCircle}
+                    placeholder=""
+                    value={action.mental_score?.toString() || ''}
+                    onChangeText={(value) => {
+                      // Only allow single digits 1-10
+                      if (value === '' || (value.length === 1 && /^[1-9]$/.test(value)) || (value.length === 2 && value === '10')) {
+                        updateAction(action.id, 'mental_score', value);
+                      }
+                    }}
+                    placeholderTextColor="#999"
+                    keyboardType="numeric"
+                    maxLength={2}
+                    textAlign="center"
+                    onBlur={() => handleSaveTrainingScores(action)}
+                  />
+                </View>
+                <View style={styles.trainingInputContainer}>
+                  <Text style={styles.trainingInputLabel}>Overall</Text>
+                  <TextInput
+                    style={styles.trainingInputCircle}
+                    placeholder=""
+                    value={action.overall_score?.toString() || ''}
+                    onChangeText={(value) => {
+                      // Only allow single digits 1-10
+                      if (value === '' || (value.length === 1 && /^[1-9]$/.test(value)) || (value.length === 2 && value === '10')) {
+                        updateAction(action.id, 'overall_score', value);
+                      }
+                    }}
+                    placeholderTextColor="#999"
+                    keyboardType="numeric"
+                    maxLength={2}
+                    textAlign="center"
+                    onBlur={() => handleSaveTrainingScores(action)}
+                  />
+                </View>
               </View>
-            </View>
+            ) : (
+              <View style={styles.inputsRow}>
+                <TouchableOpacity
+                  style={styles.timestampInput}
+                  onPress={() => openPickerForAction(action)}
+                >
+                  <Text style={[styles.timestampText, !action.timestamp && styles.timestampPlaceholder]}>
+                    {action.timestamp || '00:00'}
+                  </Text>
+                </TouchableOpacity>
+                <TextInput
+                  style={styles.descriptionInput}
+                  placeholder="Description of action..."
+                  value={action.description}
+                  onChangeText={(value) => updateAction(action.id, 'description', value)}
+                  placeholderTextColor="#999"
+                  multiline={true}
+                  //scrollEnabled={false}
+                  onBlur={() => handleSubmitAction(action, false)}
+                />
+                <View style={styles.buttonColumn}>
+                  <TouchableOpacity 
+                    style={styles.sketchButton}
+                    onPress={() => handleSketchAction(action)}
+                  >
+                    <Image
+                      source={require('../../../assets/images/onwards.png')}
+                      style={styles.sketchButtonIcon}
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                  style={styles.sketchButton}
+                  onPress={() => handleDeleteAction(action)}
+                  >
+                  <Image
+                    source={require('../../../assets/images/trash.png')}
+                    style={styles.deleteButtonIcon}
+                  />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
           </View>
         ))}
       </ScrollView>
@@ -791,5 +936,34 @@ const styles = StyleSheet.create({
   pickerItem: {
     color: 'white',
     fontSize: 18,
+  },
+  trainingInputsRow: {
+    flexDirection: 'row',
+    width: '100%',
+    gap: 15,
+    marginBottom: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  trainingInputContainer: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  trainingInputLabel: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  trainingInputCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: '#ddd',
+    backgroundColor: 'white',
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    textAlignVertical: 'center',
   },
 }); 

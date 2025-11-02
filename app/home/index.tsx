@@ -1,12 +1,11 @@
-import { timeSwitch } from '@/assets/helpers/timeSwtich';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { OpenAI } from 'openai';
-import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, Dimensions, Image, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Animated, Dimensions, Image, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import useAppState from 'react-native-useappstate';
+import { chainRunner } from '../../chainRunner';
 import SidebarModal from '../../components/SidebarModal';
 import { useHeaderWithMenu } from '../../hooks/useHeaderWithMenu';
 import { supabase } from '../../lib/supabase';
@@ -28,8 +27,9 @@ export default function HomeScreen() {
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
   const appState = useAppState();
   const rotationValue = useRef(new Animated.Value(0)).current;
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<number | null>(null);
 
+  //auto log out if screen in background for 5 minutes or more
   useEffect(() => {
       if (appState === 'background') {
         if (timeoutRef.current) {
@@ -73,90 +73,26 @@ export default function HomeScreen() {
   //make request to openAI API
   const handleSearch = async () => {
     Keyboard.dismiss();
-    const inputList: InputItem[] = [];
 
     try {
-      // Get the current user
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        Alert.alert('Error', 'You must be logged in to search');
-        return;
-      }
 
       // Add user's query to chat history
       setChatHistory(prev => [...prev, `You: ${query}`]);
+      setQuery(''); // Clear the input after sending
+      // Get the current user
 
-      //calculate query embedding
-      const response = await client.embeddings.create({
-      model: "text-embedding-3-small",
-      input: query,
-      });
-      const embedding = Array.from(response.data[0].embedding);
-      let similarActions = [];
-      if (embedding.length === 1536) {
-        const { data, error } = await supabase.rpc('search_similar_actions', {
-          query_embedding: embedding,
-          //match_threshold: 0.5, // Adjust threshold (0-1, higher = more similar)
-          match_count: 15 // Number of results to return
-        });
+      // console.log("SUPABASE: \n\n\n", supabase);
+      // console.log("OPENAI: \n\n\n", client);
+      const { assistantText } = await chainRunner(
+        query,
+        supabase,
+        client
+      );
 
-        similarActions = data; //list of objects
-
-        if (error) throw error;
-      }
-
-      // Fetch recent actions
-      // const { data: actions, error } = await supabase
-      //   .from('Actions')
-      //   .select('description, time_stamp_seconds, session_date')
-      //   .eq('user_id', user.id)
-      //   .order('session_date', { ascending: false })
-      //   .limit(100);
-
-      // if (error) throw error;
-
-      // Populate inputList with sketch descriptions
-      if (similarActions) {
-        similarActions.forEach((action: { time_stamp_seconds: any; session_date: any; description: any; }) => {
-          console.log(action);
-          inputList.push({
-            role: 'user',
-            content: `This is the data from the action at ${timeSwitch(action.time_stamp_seconds)} from the session on ${action.session_date}: ${action.description}`
-          });
-        });
-      }
-
-      // Append the user's query
-      inputList.push({
-        role: 'user',
-        content: query
-      });
-
-      //console.log(inputList);
-
-      const messages: ChatCompletionMessageParam[] = [
-        {
-          role: 'system',
-          content: 'You are a helpful assistant that will aid the user in trying to improve their performance on the football pitch. Answer questions as briefly as possible while still being friendly. Your job is to tailor your answers as much as possible to the input actions from the user. Focus on actionable ideas the user can implement in their team or personal training.'
-        },
-        ...inputList.map<ChatCompletionMessageParam>(item => ({
-          role: (item.role === 'assistant' || item.role === 'system') ? item.role : 'user',
-          content: item.content
-        }))
-      ];
-
-      const completion = await client.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages
-      });
-
-      const assistantText = completion.choices[0]?.message?.content ?? '';
 
       // Add assistant's response to chat history
       setChatHistory(prev => [...prev, `Assistant: ${assistantText}`]);
       setResponse(assistantText);
-      setQuery(''); // Clear the input after sending
 
     } catch (error) {
       console.error("Query failed: ", error);

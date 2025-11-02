@@ -32,7 +32,8 @@ FIXED?- Session creation modal keybaord input only allows for numbers, problems 
 FIXED- Add superset button + keyboard sensitive scroll view on gym page
 FIXED- Keyboard sensitive scrollview responsive to new line on. Anytime someone is typing, the typing line should be visible just above the keyboard
 FIXED- Bug with timestamp because stored as strings, ":" messes with sequential order.
-- Run timeSwitch() on timestamp of actions before appending to chat query
+- timeSwitch() on timestamp of actions before appending to chat query is returning "cannot read property 'split' of null"
+- Totally convolluted Ref flow for scrollView on gym session
 
 
 **Features to add**
@@ -43,5 +44,8 @@ IMPLEMENTED- Time scroll for timestamp
 IMPLEMENTED- Arrowhead direction + change dashed arrow + ball + straighten arrows
 - Linking with [] and {} for timestamps and other dates
 - Right now, nothing about the chat interaction persists across renders. Very short term --> should be more useful long term
-- Timeout for router.replace("/") on appState going to background
+IMPLEMENTED- Timeout for router.replace("/") on appState going to background
 - Forgot password flow + verify email flow
+- CHAINRUNNER.JS
+- Make subjective feeling for sessions look <Pretty>
+- Modify option for session entries
