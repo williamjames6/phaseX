@@ -33,7 +33,6 @@ export default function SidebarModal({ visible, onClose }: SidebarModalProps) {
     } else {
       router.push(route);
     }
-    // router.push(route);
   };
 
   return (
@@ -58,7 +57,7 @@ export default function SidebarModal({ visible, onClose }: SidebarModalProps) {
 
             <View style={styles.menuItemContainer}>
               <TouchableOpacity 
-                style={[styles.menuItem, { backgroundColor: '#f3e5f5' }]}
+                style={[styles.menuItem, { backgroundColor: '#fff3e0' }]}
                 onPress={() => handleNavigation('/physical-stack')}
               >
                 <Ionicons name="fitness" size={24} color="#333" />
@@ -68,7 +67,7 @@ export default function SidebarModal({ visible, onClose }: SidebarModalProps) {
 
             <View style={styles.menuItemContainer}>
               <TouchableOpacity 
-                style={[styles.menuItem, { backgroundColor: '#fff3e0' }]}
+                style={[styles.menuItem, { backgroundColor: '#f3e5f5' }]}
                 onPress={() => handleNavigation('/journal-stack')}
               >
                 <Ionicons name="book" size={24} color="#333" />

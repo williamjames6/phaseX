@@ -1,8 +1,9 @@
 import { Picker } from '@react-native-picker/picker';
+import { useFocusEffect } from '@react-navigation/native';
 import Constants from 'expo-constants';
 import { router, useLocalSearchParams } from 'expo-router';
 import { OpenAI } from 'openai';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Dimensions, Image, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
@@ -43,6 +44,7 @@ export default function JournalEntryIndex() {
   const [selectedMinutes, setSelectedMinutes] = useState(0);
   const [selectedSeconds, setSelectedSeconds] = useState(0);
   const [focusedTextInputId, setFocusedTextInputId] = useState<number | null>(null);
+  const [sketchesWithPaths, setSketchesWithPaths] = useState<Set<string>>(new Set());
   let actionAdder = 0;
   //const [dbTime, setDbTime] = useState(0);
 
@@ -181,6 +183,51 @@ export default function JournalEntryIndex() {
     loadExistingActions();
   }, [sessionId]);
 
+  // Check sketch paths when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      const checkSketchPaths = async () => {
+        if (actions.length === 0) return;
+
+        const sketchIds = actions
+          .map(action => action.sketch_id)
+          .filter(id => id && id !== '');
+
+        if (sketchIds.length === 0) return;
+
+        try {
+          const { data: sketchesData, error } = await supabase
+            .from('TacticalSketches')
+            .select('id, paths, grey_paths')
+            .in('id', sketchIds);
+
+          if (error) {
+            console.error('Error checking sketch paths:', error);
+            return;
+          }
+
+          const sketchesWithPathsSet = new Set<string>();
+          
+          if (sketchesData) {
+            sketchesData.forEach(sketch => {
+              const hasPaths = (sketch.paths && sketch.paths.length > 0) || 
+                              (sketch.grey_paths && sketch.grey_paths.length > 0);
+              if (hasPaths) {
+                sketchesWithPathsSet.add(sketch.id);
+              }
+            });
+          }
+
+          setSketchesWithPaths(sketchesWithPathsSet);
+        } catch (error) {
+          console.error('Error checking sketch paths:', error);
+        }
+      };
+
+      checkSketchPaths();
+    }, [actions])
+  );
+
 
   const handleAddAction = () => {
     const newAction: Action = {
@@ -238,6 +285,7 @@ export default function JournalEntryIndex() {
         // Handle regular sessions with timestamps
         // Check if this is a Master session (no date)
         const isMasterSession = !sessionDate || sessionDate === 'null' || sessionDate === null;
+        const isTypeOther = sessionType === "other";
         
         const actionData = {
           id: action.dbId,
@@ -246,6 +294,7 @@ export default function JournalEntryIndex() {
           description: action.description,
           description_embedding: response.data[0].embedding,
           sketch_id: action.sketch_id,
+          self: !isTypeOther,
           ...(isMasterSession ? {} : { session_date: sessionDate })
         };
 
@@ -598,7 +647,10 @@ export default function JournalEntryIndex() {
                 />
                 <View style={styles.buttonColumn}>
                   <TouchableOpacity 
-                    style={styles.sketchButton}
+                    style={[
+                      styles.sketchButton,
+                      sketchesWithPaths.has(action.sketch_id) && styles.sketchButtonWithPaths
+                    ]}
                     onPress={() => handleSketchAction(action)}
                   >
                     <Image
@@ -611,7 +663,7 @@ export default function JournalEntryIndex() {
                   onPress={() => handleDeleteAction(action)}
                   >
                   <Image
-                    source={require('../../../assets/images/trash.png')}
+                    source={require('../../../assets/images/pinkTrash.png')}
                     style={styles.deleteButtonIcon}
                   />
                   </TouchableOpacity>
@@ -720,6 +772,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     fontSize: 16,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   timestampText: {
     color: 'black',
@@ -772,7 +825,9 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 8,
-    backgroundColor: '#D62C09',
+    backgroundColor: '#000',
+    borderColor: '#F41A99',
+    borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -784,11 +839,14 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
+  sketchButtonWithPaths: {
+    backgroundColor: '#F41A99',
+  },
   sketchButtonIcon: {
     width: 40,
     height: 40,
     borderRadius: 8,
-    borderColor: 'yellow',
+    borderColor: '#F41A99',
     borderWidth: 1,
   },
   deleteButtonIcon: {
@@ -803,7 +861,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    borderColor: 'yellow',
+    borderColor: '#F41A99',
     borderWidth: 1,
     backgroundColor: '#000',
     justifyContent: 'center',
@@ -818,7 +876,7 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   plusSign: {
-    color: 'yellow',
+    color: '#F41A99',
     fontSize: 32,
     fontWeight: 'bold',
     lineHeight: 32,

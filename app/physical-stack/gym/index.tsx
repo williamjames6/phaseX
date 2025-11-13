@@ -1,7 +1,8 @@
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { router, useFocusEffect } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Alert, Keyboard, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { dateFormatter } from "../../../assets/helpers/dateFormatter";
 import { supabase } from '../../../lib/supabase';
 
 interface GymSession {
@@ -14,7 +15,7 @@ export default function GymIndex() {
   const [sessions, setSessions] = useState<GymSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(dateFormatter(new Date()));
 
   const loadSessions = async () => {
     try {
@@ -47,12 +48,12 @@ export default function GymIndex() {
   );
 
   const handleNewSession = () => {
-    setSelectedDate(new Date());
+    setSelectedDate(dateFormatter(new Date()));
     setShowModal(true);
   };
 
   const handleCreateSession = () => {
-    const dateString = selectedDate.toISOString().split('T')[0];
+    const dateString = selectedDate
     setShowModal(false);
     router.push(`/physical-stack/gym/session?sessionDate=${dateString}`);
   };
@@ -64,7 +65,7 @@ export default function GymIndex() {
   const handleSessionLongPress = (session: GymSession) => {
     Alert.alert(
       'Delete Session',
-      `Are you sure you want to delete the gym session from ${formatDate(session.session_date)}? This will permanently remove all exercises and data in this session.`,
+      `Are you sure you want to delete the gym session from ${session.session_date}? This will permanently remove all exercises and data in this session.`,
       [
         {
           text: 'Cancel',
@@ -105,24 +106,24 @@ export default function GymIndex() {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
+  // const formatDate = (dateString: string) => {
+  //   const date = new Date(dateString);
+  //   return date.toLocaleDateString('en-US', {
+  //     year: 'numeric',
+  //     month: 'short',
+  //     day: '2-digit'
+  //   });
+  // };
 
   return (
     <View style={styles.container}>
-      <View style={styles.addContainer}>           
-        <TouchableOpacity style={styles.addButton} onPress={handleNewSession}>
-          <Text style={styles.plusSign}>+</Text>
-        </TouchableOpacity>
-      </View>
 
       <ScrollView style={styles.sessionsContainer}>
+        <View style={styles.addContainer}>           
+          <TouchableOpacity style={styles.addButton} onPress={handleNewSession}>
+            <Text style={styles.plusSign}>+</Text>
+          </TouchableOpacity>
+        </View>
         {loading ? (
           <Text style={styles.loadingText}>Loading sessions...</Text>
         ) : sessions.length > 0 ? (
@@ -134,7 +135,7 @@ export default function GymIndex() {
               onLongPress={() => handleSessionLongPress(session)}
             >
               <View style={styles.sessionHeader}>
-                <Text style={styles.sessionDate}>{formatDate(session.session_date)}</Text>
+                <Text style={styles.sessionDate}>{session.session_date}</Text>
               </View>
             </TouchableOpacity>
           ))
@@ -162,13 +163,14 @@ export default function GymIndex() {
                 <Text style={styles.inputLabel}>Session Date:</Text>
                 <View style={styles.datePicker}>
                   <DateTimePicker
-                    value={selectedDate}
+                    value={new Date(selectedDate)}
                     mode="date"
+                    timeZoneName="America/Detroit"
                     display={Platform.OS === 'ios' ? 'default' : 'calendar'}
                     minimumDate={new Date('2020-01-01')}
                     maximumDate={new Date()}
                     onChange={(event, date) => {
-                      if (date) setSelectedDate(date);
+                      if (date) setSelectedDate(dateFormatter(date));
                     }}
                   />
                 </View>
@@ -213,7 +215,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#F41A99',
+    backgroundColor: '#FF6B35',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',

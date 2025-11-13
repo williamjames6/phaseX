@@ -32,8 +32,12 @@ FIXED?- Session creation modal keybaord input only allows for numbers, problems 
 FIXED- Add superset button + keyboard sensitive scroll view on gym page
 FIXED- Keyboard sensitive scrollview responsive to new line on. Anytime someone is typing, the typing line should be visible just above the keyboard
 FIXED- Bug with timestamp because stored as strings, ":" messes with sequential order.
-- timeSwitch() on timestamp of actions before appending to chat query is returning "cannot read property 'split' of null"
+FIXED- timeSwitch() on timestamp of actions before appending to chat query is returning "cannot read property 'split' of null"
 - Totally convolluted Ref flow for scrollView on gym session
+- something maybe not quite right with backend save (sometimes alert will randomly pop up saying something like "failed to save this action" on a blank action without the user pressing anything. Wondering if the React auto runs some refresh on a timer? )
+FIXED- UTC for dates of journal entries and gym entries (standardize handling of dates)
+- Cannot "undo" on a sketch if you have already left the screen
+FIXED- Add gym session button position fixed, should be part of scroll box
 
 
 **Features to add**
@@ -42,10 +46,11 @@ IMPLEMENTED- "Note" option should be only text entry (NEED TO IMPLEMENT BACKEND 
 IMPLEMENTED- Sketch functions (eraser, undo, color) (expected)
 IMPLEMENTED- Time scroll for timestamp
 IMPLEMENTED- Arrowhead direction + change dashed arrow + ball + straighten arrows
+IMPLEMENTED- Timeout for router.replace("/") on appState going to background
 - Linking with [] and {} for timestamps and other dates
 - Right now, nothing about the chat interaction persists across renders. Very short term --> should be more useful long term
-IMPLEMENTED- Timeout for router.replace("/") on appState going to background
 - Forgot password flow + verify email flow
-- CHAINRUNNER.JS
+- CHAINRUNNER.TS
 - Make subjective feeling for sessions look <Pretty>
 - Modify option for session entries
+- Self vs other data included

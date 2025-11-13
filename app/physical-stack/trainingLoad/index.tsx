@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 
 interface TrainingData {
   id: number;
@@ -25,7 +25,15 @@ export default function TrainingLoadIndex() {
 
   const fetchTrainingData = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/emails/from/service@firstbeat.fi');
+      // Use the correct backend URL based on platform
+      // Android emulator uses 10.0.2.2 to access host machine's localhost
+      // iOS simulator can use localhost
+      // For physical devices, replace with your computer's local IP (e.g., '192.168.1.100')
+      const backendUrl = Platform.OS === 'android' 
+        ? 'http://10.0.2.2:3000' 
+        : 'http://localhost:3000';
+      
+      const response = await fetch(`${backendUrl}/api/emails/from/service@firstbeat.fi`);
       if (!response.ok) {
         throw new Error('Failed to fetch training data');
       }

@@ -1,6 +1,6 @@
 import * as LocalAuthentication from 'expo-local-authentication';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Animated, Keyboard, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '../lib/supabase';
@@ -10,11 +10,41 @@ export default function LoginScreen() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const fromRegister = useLocalSearchParams().fromRegister;
+  const isMountedRef = useRef(true);
   
   // Animation values
   const loginOpacity = useRef(new Animated.Value(0)).current;
   const loginTranslateY = useRef(new Animated.Value(50)).current;
   const hasRunRef = useRef(false);
+
+  useEffect(() => {
+    console.log("Mounted: index page");
+    return () => console.log("Unmounted: index page");
+  }, []);
+
+  
+
+  const handleFaceID = useCallback(async () => {
+    try {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: "Login with Face ID",
+        fallbackLabel: "Enter Passcode", // iOS fallback
+        disableDeviceFallback: false,
+      });
+      const {data, error} = await supabase.auth.refreshSession();
+      if (error) {
+        console.log(error);
+        Alert.alert("Please enter username and password to activate session");
+        return;
+      };
+      if (result && data?.session?.refresh_token && data?.session?.access_token) {
+        router.replace('/home');
+        return;
+      };
+    } catch (error) {
+      Alert.alert('Error');
+    }
+  }, []);
 
   // Start animation sequence and auto faceID login on component mount
   useEffect(() => {
@@ -23,6 +53,7 @@ export default function LoginScreen() {
       return;
     }
     hasRunRef.current = true;
+    isMountedRef.current = true;
 
     const startAnimation = () => {
       return new Promise((resolve) => {
@@ -43,8 +74,11 @@ export default function LoginScreen() {
       });
     };
     const fetchSession = async () => {
+      // Check if component is still mounted before proceeding
+      if (!isMountedRef.current) return;
+      
       const {data, error} = await supabase.auth.getSession();
-      if (data?.session) {
+      if (data?.session && isMountedRef.current) {
         console.log("appState is active and session is active");
         handleFaceID();
         return;
@@ -56,32 +90,18 @@ export default function LoginScreen() {
 
     const start = async () => {
       await startAnimation();
-      await fetchSession();
+      if (isMountedRef.current) {
+        await fetchSession();
+      }
     }
     start();
-  }, []);
 
-  const handleFaceID = async () => {
-    try {
-      const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: "Login with Face ID",
-        fallbackLabel: "Enter Passcode", // iOS fallback
-        disableDeviceFallback: false,
-      });
-      const {data, error} = await supabase.auth.refreshSession();
-      if (error) {
-        console.log(error);
-        Alert.alert("Please enter username and password to activate session");
-        return;
-      };
-      if (result && data?.session?.refresh_token && data?.session?.access_token) {
-        router.replace('/home');
-        return;
-      };
-    } catch (error) {
-      Alert.alert('Error');
-    }
-  };
+    // Cleanup function to mark component as unmounted
+    return () => {
+      console.log('unmounted');
+      isMountedRef.current = false;
+    };
+  }, [handleFaceID]);
 
   const handleLogin = async () => {
     try {

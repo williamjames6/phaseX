@@ -1,5 +1,4 @@
 import { Stack } from 'expo-router';
-import React from 'react';
 
 export default function PhysicalLayout() {
   return (
@@ -21,7 +20,13 @@ export default function PhysicalLayout() {
         name="gym/session"
         options={{
           title: 'Gym Session',
-          headerShown: true,
+          headerStyle: {
+            backgroundColor: '#000',
+          },
+          headerTintColor: '#ffffff',
+          headerTitleStyle: {
+            fontWeight: 'bold',
+          },
         }}
       />
       <Stack.Screen

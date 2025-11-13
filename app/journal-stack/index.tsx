@@ -3,9 +3,11 @@ import { useNavigation } from "@react-navigation/native";
 import { File, Paths } from 'expo-file-system';
 import { router, useFocusEffect } from 'expo-router';
 import * as Sharing from 'expo-sharing';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Image, Keyboard, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { dateFormatter } from "../../assets/helpers/dateFormatter";
 import { convertToCSV } from "../../assets/helpers/json2SCV";
+import { timeSwitch } from "../../assets/helpers/timeSwitch";
 import SidebarModal from '../../components/SidebarModal';
 import { useHeaderWithMenu } from '../../hooks/useHeaderWithMenu';
 import { supabase } from '../../lib/supabase';
@@ -43,21 +45,29 @@ export default function JournalIndex() {
   const [showEndPicker, setShowEndPicker] = useState(false);
 
   useEffect(() => {
-    console.log("Mounted:");
-    return () => console.log("Unmounted:");
+    console.log("Mounted: journal stack index page");
+    return () => console.log("Unmounted: journal stack index page");
+  }, []);
+
+  // Memoize the headerRight function to prevent unnecessary re-renders
+  const headerRight = useMemo(() => () => (
+    <TouchableOpacity onPress={() => setShowDownloadModal(true)}>
+      <Image
+        source={require('../../assets/images/download.png')}
+        style={{height: 25, width: 25, tintColor: 'white'}}
+      />
+    </TouchableOpacity>
+  ), []);
+
+  // Memoize the onMenuPress callback
+  const handleMenuPress = useCallback(() => {
+    setIsSidebarVisible(true);
   }, []);
 
   useHeaderWithMenu({
     title: 'Journal',
-    onMenuPress: () => setIsSidebarVisible(true),
-    headerRight: () => (
-      <TouchableOpacity onPress={() => setShowDownloadModal(true)}>
-        <Image
-          source={require('../../assets/images/download.png')}
-          style={{height: 25, width: 25, tintColor: 'white'}}
-        />
-      </TouchableOpacity>
-    ),
+    onMenuPress: handleMenuPress,
+    headerRight: headerRight,
   });
 
   const downloadMonthlyActions = async (start: Date | null, end: Date | null) => {
@@ -72,13 +82,13 @@ export default function JournalIndex() {
       end = temp;
     }
     console.log("Start:  ", start, "End:  ", end);
-    const firstDay = start.toISOString();
-    const lastDay = end.toISOString();
+    const firstDay = dateFormatter(start) + 'T00:00:00.000Z';
+    const lastDay = dateFormatter(end) + 'T23:59:59.999Z';
     console.log(firstDay, lastDay);
     // const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
     const { data, error } = await supabase //don't like this format without "try, catch" blocks but just trying to get functionality right now
       .from('Actions')
-      .select('time_stamp_seconds, description, session_date')
+      .select('time_stamp_seconds, description, session_date, self')
       .gte('session_date', firstDay)
       .lte('session_date', lastDay)
       .order("session_date", {ascending: true});
@@ -88,10 +98,16 @@ export default function JournalIndex() {
       Alert.alert("Failure to retrieve requested actions. What are you gonna do, cry about it? Fuck you.");
       return;
     }
-    console.log("Data: ", data);
-    const csv = convertToCSV(data);
 
-    //let monthName = now.toLocaleString('default', { month: 'long' }), year= now.toLocaleDateString('default', {year: 'numeric'});
+    let processedData = data.map(action => ({
+      session_date: action.session_date,
+      self: action.self,
+      time_stamp: timeSwitch(action.time_stamp_seconds),
+      description: action.description,
+    }));
+
+    const csv = convertToCSV(processedData);
+
     let random = Math.floor(Math.random() * MAX_DOWNLOAD_INT).toString();
     console.log(random);
     const fileName = `${random}_actions.csv`; 
@@ -119,7 +135,8 @@ export default function JournalIndex() {
   }
   
 
-  const loadRecentSessions = async (isLoadMore = false) => {
+  // Memoize loadRecentSessions to prevent unnecessary re-creations
+  const loadRecentSessions = useCallback(async (isLoadMore = false) => {
     try {
       const currentOffset = isLoadMore ? offset : 0;
       
@@ -176,7 +193,7 @@ export default function JournalIndex() {
       setLoading(false);
       setLoadingMore(false);
     }
-  };
+  }, [offset, limit]);
 
   const loadMoreSessions = async () => {
     if (loadingMore || !hasMore) return;
@@ -189,7 +206,7 @@ export default function JournalIndex() {
   useFocusEffect(
     useCallback(() => {
       loadRecentSessions();
-    }, [])
+    }, [loadRecentSessions])
   );
 
   const handleNewSession = async () => {
@@ -197,7 +214,7 @@ export default function JournalIndex() {
   };
 
   const handleCreateSession = async () => {
-    const dateString = selectedDate.toISOString().split('T')[0];
+    const dateString = dateFormatter(selectedDate);
 
     try {
       const { data, error } = await supabase
@@ -244,18 +261,6 @@ export default function JournalIndex() {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    // Parse the date string manually to avoid timezone issues
-    const [year, month, day] = dateString.split('-').map(Number);
-    const date = new Date(year, month - 1, day); // month is 0-indexed in Date constructor
-    return date.toLocaleDateString('en-US', { 
-      //weekday: 'long', 
-      year: 'numeric', 
-      month: 'numeric', 
-      day: 'numeric' 
-    });
-  };
-
   const handleDeleteSession = async (sessionId: number) => {
     if (!sessionId) {
       Alert.alert('Error', 'No session ID found');
@@ -274,6 +279,7 @@ export default function JournalIndex() {
           text: 'Modify',
           style: 'default',
           onPress: async () => {
+            setShowModal(true)
             return;
           }
         },
@@ -370,22 +376,27 @@ export default function JournalIndex() {
               onPress={() => handleSessionPress(session)}
               onLongPress={() => handleDeleteSession(session.id)}
             >
-              {
-                session.description !== null ? (
-                  <View>
-                    <Text style={styles.sessionButtonText}>
-                      {session.date === null ? 'MASTER' : `${formatDate(session.date)} - ${session.type.charAt(0).toUpperCase() + session.type.slice(1)}`}
+                   <View style={styles.sessionButtonView}>
+                    {session.date === null ? 
+                      (<Text style={styles.masterButtonText}>
+                        MASTER
+                      </Text>) :
+                      <View style={styles.sessionButtonView}>
+                        <Text style={styles.sessionButtonText}>
+                          {`${session.date}`}
+                        </Text>
+                        <Text style={styles.sessionSubtitle}>
+                          {session.description ? session.description : `${session.type.charAt(0).toUpperCase() + session.type.slice(1)}`}
+                        </Text>
+                      </View>                 
+                    }
+                    {/* <Text style={styles.sessionButtonText}>
+                      {session.date === null ? 'MASTER' : `${session.date}`}
                     </Text>
                     <Text style={styles.loadingText}>
-                      {session.description}
-                    </Text>
+                      {session.description ? session.description : `${session.type.charAt(0).toUpperCase() + session.type.slice(1)}`}
+                    </Text> */}
                   </View>
-                ) : (
-                <Text style={styles.sessionButtonText}>
-                  {session.date === null ? 'MASTER' : `${formatDate(session.date)} - ${session.type.charAt(0).toUpperCase() + session.type.slice(1)}`}
-                </Text>
-                )
-              }
             </TouchableOpacity>
           ))}
           
@@ -428,7 +439,6 @@ export default function JournalIndex() {
                 {/* {showStartPicker && ( */}
                 <View style={styles.datePicker}>
                   <DateTimePicker
-                    //style={{backgroundColor: 'rgba(0,0,0,0.5)', width: '80%'}}
                     value={startDate || monthAgo}
                     mode="date"
                     //display={Platform.OS === "ios" ? "inline" : "default"}
@@ -440,15 +450,7 @@ export default function JournalIndex() {
                       if (date) setStartDate(date);
                     }}
                   />
-                </View>
-                {/* )} */}
-
-                {/* End Date */}
-                {/* <Button
-                  title={endDate ? endDate.toDateString() : "Select End Date"}
-                  onPress={() => setShowEndPicker(!showEndPicker)}
-                /> */}
-                {/* {showEndPicker && ( */}
+              </View>
                 <View style={styles.datePicker}>
                   <DateTimePicker
                     value={endDate || today}
@@ -462,7 +464,6 @@ export default function JournalIndex() {
                     }}
                   />
                 </View>
-                 {/* )} */}
               </View>
               
               {/* Action Buttons */}
@@ -650,7 +651,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 16,
     color: '#666',
-    //marginBottom: 30,
   },
   noSessionsText: {
     textAlign: 'center',
@@ -794,5 +794,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ccc',
     borderRadius: 8,
+  },
+  sessionButtonView: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  masterButtonText: {
+    fontWeight: '800',
+  },
+  sessionSubtitle: {
+    fontStyle: "italic",
+    fontSize: 16,
+    color: '#666',
   }
 }); 

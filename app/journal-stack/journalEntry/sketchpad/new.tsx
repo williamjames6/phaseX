@@ -1,6 +1,6 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams } from 'expo-router';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, AppStateStatus, Dimensions, GestureResponderEvent, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { supabase } from '../../../../lib/supabase';
@@ -174,6 +174,12 @@ export default function NewSketchScreen() {
         // Auto-save when screen loses focus
         console.log('Screen losing focus, auto-saving...');
         handleAutoSave();
+        
+        // Check if pathsRef is not empty when leaving the screen
+        const hasPaths = pathsRef.current.length > 0 || greyPathsRef.current.length > 0;
+        if (hasPaths) {
+          console.log('Sketch has paths, button should be red');
+        }
       };
     }, [handleAutoSave])
   );

@@ -37,6 +37,7 @@ export default function HomeScreen() {
         };
         timeoutRef.current = setTimeout(() => {
           router.replace('/');
+          console.log('timed out');
           return;
         }, 300000);
 

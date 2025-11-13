@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { v4 as uuidv4 } from 'uuid';
+import { dateFormatter } from '../../../assets/helpers/dateFormatter';
 import { supabase } from '../../../lib/supabase';
 
 interface Exercise {
@@ -34,6 +35,7 @@ export default function GymSession() {
   const setsScrollViewRefs = useRef<{ [key: string]: ScrollView | null }>({});
   const inputRefs = useRef<{ [key: string]: TextInput | null }>({});
   const supersetPositionYRef = useRef<{ [key: string]: number }>({});
+
 
   useEffect(() => {
     if (id) {
@@ -82,7 +84,7 @@ export default function GymSession() {
           .insert({
             id: sessionId,
             user_id: user.id,
-            session_date: sessionDate || new Date().toISOString().split('T')[0],
+            session_date: sessionDate || dateFormatter(new Date()),
             data: jsonbData
           });
         if (error) throw error;
@@ -434,7 +436,7 @@ export default function GymSession() {
         .insert({
           id: sessionId,
           user_id: user.id,
-          session_date: sessionDate || new Date().toISOString().split('T')[0],
+          session_date: sessionDate || dateFormatter(new Date()),
           data: jsonbData
         })
           .select()
@@ -485,9 +487,6 @@ export default function GymSession() {
 
   const scrollToInput = (inputId: string) => {
 
-    // console.log(scrollViewRef.current?.getNativeScrollRef());
-    // console.log("BBBBBBBBBBBBBBBBB");
-    //console.log(scrollViewRef.current);
     // Find the superset container that contains this input
     const supersetEntries = Object.entries(supersets);
     let targetSupersetKey: string | null = null;
@@ -542,9 +541,8 @@ export default function GymSession() {
         >
           {/* Session Header */}
           <View style={styles.sessionHeader}>
-            <Text style={styles.sessionTitle}>Gym Session</Text>
             <Text style={styles.sessionDate}>
-              {session?.session_date ? new Date(session.session_date).toLocaleDateString() : 'Today'}
+              {session?.session_date ? session.session_date : 'Today'}
             </Text>
           </View>
 
@@ -558,7 +556,7 @@ export default function GymSession() {
               }}
             >
               <View style={styles.supersetHeader}>
-                <Text style={styles.supersetTitle}>Superset {supersetNum}</Text>
+                <Text style={styles.supersetTitle}># {supersetNum}</Text>
                 <TouchableOpacity
                   style={styles.deleteSupersetButton}
                   onPress={() => handleDeleteSuperset(parseInt(supersetNum))}
@@ -736,6 +734,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 2,
+    flex: 1,
+    alignItems: 'center',
   },
   sessionTitle: {
     fontSize: 24,
@@ -745,7 +745,7 @@ const styles = StyleSheet.create({
   },
   sessionDate: {
     fontSize: 16,
-    color: '#666',
+    color: '#FF6B35',
     marginBottom: 8,
   },
   sessionNotes: {
@@ -767,19 +767,21 @@ const styles = StyleSheet.create({
   supersetTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: '#FF6B35',
   },
   deleteSupersetButton: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: '#ff4444',
+    backgroundColor: 'black',
+    borderColor: '#FF6B35',
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
   },
   deleteSupersetButtonText: {
-    color: 'white',
+    color: '#FF6B35',
     fontSize: 18,
     fontWeight: 'bold',
   },
@@ -859,14 +861,16 @@ const styles = StyleSheet.create({
   addSetButton: {
     width: 30,
     height: 30,
-    borderRadius: 15,
-    backgroundColor: '#4CAF50',
+    borderRadius: 10,
+    borderColor: '#FF6B35',
+    borderWidth: 1,
+    backgroundColor: 'white',
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 8,
   },
   addSetButtonText: {
-    color: 'white',
+    color: '#FF6B35',
     fontSize: 18,
     fontWeight: 'bold',
   },
@@ -874,14 +878,16 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: '#ff4444',
+    borderColor: '#FF6B35',
+    borderWidth: 1,
+    backgroundColor: 'white',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 4,
     alignSelf: 'center',
   },
   removeSetButtonText: {
-    color: 'white',
+    color: '#FF6B35',
     fontSize: 14,
     fontWeight: 'bold',
   },
@@ -909,7 +915,9 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#4CAF50',
+    borderColor: '#FF6B35',
+    borderWidth: 1,
+    backgroundColor: 'white',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 12,
@@ -921,7 +929,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    borderColor: 'yellow',
+    borderColor: '#FF6B35',
     borderWidth: 1,
     backgroundColor: '#000',
     justifyContent: 'center',
@@ -936,25 +944,11 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   plusSign: {
-    color: 'yellow',
+    color: '#FF6B35',
     fontSize: 32,
     fontWeight: 'bold',
     lineHeight: 32,
   },
-  // bottomButtonsContainer: {
-  //   flexDirection: 'row',
-  //   justifyContent: 'space-between',
-  //   alignItems: 'center',
-  //   paddingHorizontal: 20,
-  //   paddingTop: 20,
-  //   paddingBottom: 20,
-  //   marginTop: 20,
-  //   position: 'absolute',
-  //   bottom: 0,
-  //   left: 0,
-  //   right: 0,
-  //   backgroundColor: '#000000',
-  // },
   loadingText: {
     textAlign: 'center',
     fontSize: 16,
