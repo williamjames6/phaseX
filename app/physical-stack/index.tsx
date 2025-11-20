@@ -24,6 +24,11 @@ export default function PhysicalIndex() {
           <Text style={styles.buttonText}>Gym</Text>
         </TouchableOpacity>
       </Link>
+      <Link href="/physical-stack/nutrition" asChild>
+        <TouchableOpacity style={styles.nutritionButton}>
+          <Text style={styles.buttonText}>Nutrition</Text>
+        </TouchableOpacity>
+      </Link>
       
       <SidebarModal visible={isSidebarVisible} onClose={() => setIsSidebarVisible(false)} />
     </View>
@@ -47,6 +52,14 @@ const styles = StyleSheet.create({
   },
   gymButton: {
     backgroundColor: '#FF6B35',
+    padding: 22.5,
+    borderRadius: 8,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nutritionButton: {
+    backgroundColor: '#e3f2fd',
     padding: 22.5,
     borderRadius: 8,
     width: '100%',

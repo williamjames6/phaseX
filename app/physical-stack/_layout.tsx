@@ -36,6 +36,13 @@ export default function PhysicalLayout() {
           headerShown: true,
         }}
       />
+      <Stack.Screen
+        name="nutrition/index"
+        options={{
+          title: 'Nutrition',
+          headerShown: true,
+        }}
+      />
     </Stack>
   );
 } 

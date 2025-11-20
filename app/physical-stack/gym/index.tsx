@@ -15,7 +15,7 @@ export default function GymIndex() {
   const [sessions, setSessions] = useState<GymSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(dateFormatter(new Date()));
+  const [selectedDate, setSelectedDate] = useState(new Date());
 
   const loadSessions = async () => {
     try {
@@ -48,12 +48,12 @@ export default function GymIndex() {
   );
 
   const handleNewSession = () => {
-    setSelectedDate(dateFormatter(new Date()));
+    setSelectedDate(new Date());
     setShowModal(true);
   };
 
   const handleCreateSession = () => {
-    const dateString = selectedDate
+    const dateString = dateFormatter(selectedDate)
     setShowModal(false);
     router.push(`/physical-stack/gym/session?sessionDate=${dateString}`);
   };
@@ -106,15 +106,6 @@ export default function GymIndex() {
     }
   };
 
-  // const formatDate = (dateString: string) => {
-  //   const date = new Date(dateString);
-  //   return date.toLocaleDateString('en-US', {
-  //     year: 'numeric',
-  //     month: 'short',
-  //     day: '2-digit'
-  //   });
-  // };
-
   return (
     <View style={styles.container}>
 
@@ -163,14 +154,14 @@ export default function GymIndex() {
                 <Text style={styles.inputLabel}>Session Date:</Text>
                 <View style={styles.datePicker}>
                   <DateTimePicker
-                    value={new Date(selectedDate)}
+                    value={selectedDate}
                     mode="date"
                     timeZoneName="America/Detroit"
                     display={Platform.OS === 'ios' ? 'default' : 'calendar'}
                     minimumDate={new Date('2020-01-01')}
                     maximumDate={new Date()}
                     onChange={(event, date) => {
-                      if (date) setSelectedDate(dateFormatter(date));
+                      if (date) setSelectedDate(date);
                     }}
                   />
                 </View>
@@ -335,7 +326,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   createButton: {
-    backgroundColor: '#F41A99',
+    backgroundColor: '#FF6B35',
   },
   createButtonText: {
     color: 'white',

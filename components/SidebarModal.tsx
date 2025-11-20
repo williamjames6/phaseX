@@ -76,16 +76,6 @@ export default function SidebarModal({ visible, onClose }: SidebarModalProps) {
             </View>
 
             <View style={styles.menuItemContainer}>
-              <TouchableOpacity 
-                style={[styles.menuItem, { backgroundColor: '#e3f2fd' }]}
-                onPress={() => handleNavigation('/nutrition-stack')}
-              >
-                <Ionicons name="nutrition" size={24} color="#333" />
-                <Text style={styles.menuText}>Nutrition</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.menuItemContainer}>
               <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
                 <Ionicons name="log-out" size={20} color="#fff" />
                 <Text style={styles.logoutText}>Logout</Text>

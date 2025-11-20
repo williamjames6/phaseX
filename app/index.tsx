@@ -17,11 +17,6 @@ export default function LoginScreen() {
   const loginTranslateY = useRef(new Animated.Value(50)).current;
   const hasRunRef = useRef(false);
 
-  useEffect(() => {
-    console.log("Mounted: index page");
-    return () => console.log("Unmounted: index page");
-  }, []);
-
   
 
   const handleFaceID = useCallback(async () => {

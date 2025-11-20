@@ -34,12 +34,6 @@ export default function Layout() {
           headerShown: false 
         }} 
       />
-      <Stack.Screen 
-        name="nutrition-stack" 
-        options={{ 
-          headerShown: false 
-        }} 
-      />
     </Stack>
   );
 }

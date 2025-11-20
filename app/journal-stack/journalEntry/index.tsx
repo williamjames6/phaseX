@@ -549,10 +549,8 @@ export default function JournalEntryIndex() {
           ))}
         </ScrollView>
       </KeyboardAvoidingView>
-    </View>
-    
-    : 
-    
+    </View>   
+    :    
     <View style={styles.container}>
       
       {/* <KeyboardAwareScrollView> */}
@@ -682,6 +680,7 @@ export default function JournalEntryIndex() {
           <Text style={styles.plusSign}>+</Text>
         </TouchableOpacity>
       </View>
+      {/* Timestamp Modal */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -734,6 +733,7 @@ export default function JournalEntryIndex() {
           </View>
         </View>
       </Modal>
+      {/* Timestamp Modal */}
     </View>
   );
 }
