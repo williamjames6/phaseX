@@ -38,15 +38,15 @@ export default function JournalEntryIndex() {
   const scrollViewRef = useRef<ScrollView>(null);
   const noteScrollViewRef = useRef<ScrollView>(null);
   const textInputRefs = useRef<{ [key: string]: TextInput | null }>({});
-  //const timeRegex = /\b\d{1,3}:\d{2}\b/;
   const [isPickerVisible, setPickerVisible] = useState(false);
   const [pickerActionId, setPickerActionId] = useState<number | null>(null);
   const [selectedMinutes, setSelectedMinutes] = useState(0);
   const [selectedSeconds, setSelectedSeconds] = useState(0);
   const [focusedTextInputId, setFocusedTextInputId] = useState<number | null>(null);
   const [sketchesWithPaths, setSketchesWithPaths] = useState<Set<string>>(new Set());
+  const [playerList, setPlayerList] = useState<string[]>([]);
+  const [typingPlayer, setTypingPlayer] = useState<string | null>(null);
   let actionAdder = 0;
-  //const [dbTime, setDbTime] = useState(0);
 
 
   // Load existing actions for this session
@@ -183,6 +183,31 @@ export default function JournalEntryIndex() {
     loadExistingActions();
   }, [sessionId]);
 
+  // Load player mentions on component mount
+  const loadPlayerMentions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('playerMentions')
+        .select('name');
+
+      if (error) {
+        console.error('Error loading player mentions:', error);
+        return;
+      }
+
+      if (data) {
+        const names = data.map(player => player.name);
+        setPlayerList(names);
+      }
+    } catch (error) {
+      console.error('Error loading player mentions:', error);
+    }
+  };
+
+  useEffect(() => {
+    loadPlayerMentions();
+  }, []);
+
   // Check sketch paths when screen comes into focus
   useFocusEffect(
     useCallback(() => {
@@ -229,6 +254,84 @@ export default function JournalEntryIndex() {
   );
 
 
+  // Helper function to parse player mentions from description
+  const parsePlayerMentions = (description: string): string => {
+    const mentionRegex = /@([a-zA-Z]+)/g;
+    const mentions: string[] = [];
+    let match;
+    
+    while ((match = mentionRegex.exec(description)) !== null) {
+      mentions.push(match[1]);
+    }
+    
+    return mentions.join(' ');
+  };
+
+  // Helper function to render styled text with player mentions
+  const renderStyledText = (text: string, baseStyle: any) => {
+    const parts: Array<{ text: string; isMention: boolean }> = [];
+    const mentionRegex = /@([a-zA-Z]+)/g;
+    let lastIndex = 0;
+    let match;
+
+    while ((match = mentionRegex.exec(text)) !== null) {
+      // Add text before mention
+      if (match.index > lastIndex) {
+        parts.push({ text: text.substring(lastIndex, match.index), isMention: false });
+      }
+      // Add mention
+      parts.push({ text: match[0], isMention: true });
+      lastIndex = match.index + match[0].length;
+    }
+    // Add remaining text
+    if (lastIndex < text.length) {
+      parts.push({ text: text.substring(lastIndex), isMention: false });
+    }
+    // If no mentions, return original text
+    if (parts.length === 0) {
+      parts.push({ text, isMention: false });
+    }
+
+    return (
+      <Text style={[baseStyle, { fontSize: 16, lineHeight: baseStyle?.lineHeight || 20 }]}>
+        {parts.map((part, index) => (
+          <Text
+            key={index}
+            style={part.isMention ? { color: '#F41A99', fontWeight: '600', textDecorationLine: 'none' } : { color: baseStyle?.color || '#000' }}
+          >
+            {part.text}
+          </Text>
+        ))}
+      </Text>
+    );
+  };
+
+  // Helper function to add new player to playerMentions table
+  const addNewPlayer = async (playerName: string) => {
+    if (!playerName || playerName.trim() === '') return;
+    
+    // Check if player already exists in playerList
+    if (playerList.includes(playerName)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('playerMentions')
+        .upsert([{ name: playerName }]);
+
+      if (error) {
+        console.error('Error adding new player:', error);
+        return;
+      }
+
+      // Update playerList state
+      setPlayerList(prev => [...prev, playerName]);
+    } catch (error) {
+      console.error('Error adding new player:', error);
+    }
+  };
+
   const handleAddAction = () => {
     const newAction: Action = {
       id: nextId,
@@ -265,6 +368,7 @@ export default function JournalEntryIndex() {
           description: action.description,
           sketch_id: action.sketch_id,
           description_embedding: response.data[0].embedding,
+          player_mentions: parsePlayerMentions(action.description),
           time_stamp_seconds: null, // Explicitly set to null for note actions
           ...(sessionDate && sessionDate !== 'null' ? { session_date: sessionDate } : {})
         };
@@ -284,8 +388,9 @@ export default function JournalEntryIndex() {
       } else {
         // Handle regular sessions with timestamps
         // Check if this is a Master session (no date)
-        const isMasterSession = !sessionDate || sessionDate === 'null' || sessionDate === null;
+        //const isMasterSession = !sessionDate || sessionDate === 'null' || sessionDate === null;
         const isTypeOther = sessionType === "other";
+        
         
         const actionData = {
           id: action.dbId,
@@ -293,9 +398,11 @@ export default function JournalEntryIndex() {
           time_stamp_seconds: timeSwitch(action.timestamp),
           description: action.description,
           description_embedding: response.data[0].embedding,
+          player_mentions: parsePlayerMentions(action.description),
           sketch_id: action.sketch_id,
           self: !isTypeOther,
-          ...(isMasterSession ? {} : { session_date: sessionDate })
+          session_date: sessionDate,
+          //...(isMasterSession ? {} : { session_date: sessionDate })
         };
 
         const { data, error } = await supabase
@@ -389,6 +496,44 @@ export default function JournalEntryIndex() {
       ));
       return;
     }
+    
+    // For description field, handle player mention tracking
+    if (field === 'description' && typeof value === 'string') {
+      const description = value;
+      const lastChar = description.length > 0 ? description[description.length - 1] : '';
+      
+      // Check if last character is "@"
+      if (lastChar === '@') {
+        setTypingPlayer('');
+      }
+      // Check if we're in the middle of typing a player mention
+      else if (typingPlayer !== null) {
+        // Find the last @ symbol and extract the player name after it
+        const lastAtIndex = description.lastIndexOf('@');
+        if (lastAtIndex !== -1) {
+          const afterAt = description.substring(lastAtIndex + 1);
+          // Check if the text after @ is all alphabetic (still typing the name)
+          if (/^[a-zA-Z]*$/.test(afterAt)) {
+            setTypingPlayer(afterAt);
+          }
+          // If there's a non-alphabetic character, the player name is complete
+          else {
+            const playerNameMatch = afterAt.match(/^([a-zA-Z]+)/);
+            if (playerNameMatch && playerNameMatch[1]) {
+              addNewPlayer(playerNameMatch[1]);
+            }
+            setTypingPlayer(null);
+          }
+        } else {
+          // No @ found, reset tracking
+          if (typingPlayer !== '') {
+            addNewPlayer(typingPlayer);
+          }
+          setTypingPlayer(null);
+        }
+      }
+    }
+    
     // For other fields, update as string
     setActions(actions.map(action => 
       action.id === id ? { ...action, [field]: value } : action
@@ -524,35 +669,60 @@ export default function JournalEntryIndex() {
               key={action.id}
               onPress={() => handleTextInputTap(action.id)}
             >
-              <View>
+              <View style={{ position: 'relative' }}>
                 <TextInput
                   ref={(ref) => {
                     if (ref) {
                       textInputRefs.current[action.id.toString()] = ref;
                     }
                   }}
-                  style={styles.noteStyle}
+                  style={[styles.noteStyle, { zIndex: focusedTextInputId === action.id ? 2 : 1, color: focusedTextInputId === action.id ? '#000' : 'transparent' }]}
                   placeholder=""
                   value={action.description}
                   onChangeText={(value) => updateAction(action.id, 'description', value)}
                   placeholderTextColor="#999"
                   multiline={true}
                   scrollEnabled={false}
+                  onFocus={() => setFocusedTextInputId(action.id)}
                   onBlur={() => {
+                    if (typingPlayer !== null && typingPlayer !== '') {
+                      addNewPlayer(typingPlayer);
+                      setTypingPlayer(null);
+                    }
                     handleSubmitAction(action, false);
                     setFocusedTextInputId(null);
                   }}
+                  onSelectionChange={() => {
+                    if (typingPlayer !== null && typingPlayer !== '') {
+                      addNewPlayer(typingPlayer);
+                      setTypingPlayer(null);
+                    }
+                  }}
                   pointerEvents={focusedTextInputId === action.id ? 'auto' : 'none'}
                 />
+                {focusedTextInputId !== action.id && (
+                  <TouchableWithoutFeedback onPress={() => {
+                    setFocusedTextInputId(action.id);
+                    setTimeout(() => {
+                      textInputRefs.current[action.id.toString()]?.focus();
+                    }, 100);
+                  }}>
+                    <View style={[styles.noteStyle, { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1 }]}>
+                      {action.description ? (
+                        renderStyledText(action.description, { color: '#000' })
+                      ) : (
+                        <Text style={{ color: '#999' }}>Tap to add note...</Text>
+                      )}
+                    </View>
+                  </TouchableWithoutFeedback>
+                )}
               </View>
             </TouchableWithoutFeedback>
           ))}
         </ScrollView>
       </KeyboardAvoidingView>
-    </View>
-    
-    : 
-    
+    </View>   
+    :    
     <View style={styles.container}>
       
       {/* <KeyboardAwareScrollView> */}
@@ -635,16 +805,56 @@ export default function JournalEntryIndex() {
                     {action.timestamp || '00:00'}
                   </Text>
                 </TouchableOpacity>
-                <TextInput
-                  style={styles.descriptionInput}
-                  placeholder="Description of action..."
-                  value={action.description}
-                  onChangeText={(value) => updateAction(action.id, 'description', value)}
-                  placeholderTextColor="#999"
-                  multiline={true}
-                  //scrollEnabled={false}
-                  onBlur={() => handleSubmitAction(action, false)}
-                />
+                <View style={{ position: 'relative', flex: 4 }}>
+                  <TextInput
+                    ref={(ref) => {
+                      if (ref) {
+                        textInputRefs.current[action.id.toString()] = ref;
+                      }
+                    }}
+                    style={[styles.descriptionInput, { zIndex: focusedTextInputId === action.id ? 2 : 1, color: focusedTextInputId === action.id ? '#000' : 'transparent' }]}
+                    placeholder="Description of action..."
+                    value={action.description}
+                    onChangeText={(value) => updateAction(action.id, 'description', value)}
+                    placeholderTextColor="#999"
+                    multiline={true}
+                    onFocus={() => setFocusedTextInputId(action.id)}
+                    onBlur={() => {
+                      if (typingPlayer !== null && typingPlayer !== '') {
+                        addNewPlayer(typingPlayer);
+                        setTypingPlayer(null);
+                      }
+                      handleSubmitAction(action, false);
+                      setFocusedTextInputId(null);
+                    }}
+                    onSelectionChange={() => {
+                      if (typingPlayer !== null && typingPlayer !== '') {
+                        addNewPlayer(typingPlayer);
+                        setTypingPlayer(null);
+                      }
+                    }}
+                    pointerEvents={focusedTextInputId === action.id ? 'auto' : 'none'}
+                  />
+                  {focusedTextInputId !== action.id && (
+                    <TouchableWithoutFeedback onPress={() => {
+                      setFocusedTextInputId(action.id);
+                      setTimeout(() => {
+                        const ref = textInputRefs.current[action.id.toString()];
+                        if (ref) {
+                          ref.focus();
+                        }
+                      }, 100);
+                    }}>
+                      <View style={[styles.descriptionInput, { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1 }]}>
+                        {action.description ? (
+                          renderStyledText(action.description, { color: '#000' })
+                        ) : (
+                          <Text style={{ color: '#999' }}>Description of action...</Text>
+                        )}
+                      </View>
+                    </TouchableWithoutFeedback>
+                  )}
+                </View>
                 <View style={styles.buttonColumn}>
                   <TouchableOpacity 
                     style={[
@@ -682,6 +892,7 @@ export default function JournalEntryIndex() {
           <Text style={styles.plusSign}>+</Text>
         </TouchableOpacity>
       </View>
+      {/* Timestamp Modal */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -734,6 +945,7 @@ export default function JournalEntryIndex() {
           </View>
         </View>
       </Modal>
+      {/* Timestamp Modal */}
     </View>
   );
 }
@@ -788,6 +1000,7 @@ const styles = StyleSheet.create({
     borderColor: '#ddd',
     borderRadius: 8,
     paddingHorizontal: 12,
+    paddingVertical: 8,
     backgroundColor: 'white',
     fontSize: 16,
     textAlignVertical: 'top',
