@@ -1,7 +1,7 @@
 import * as LocalAuthentication from 'expo-local-authentication';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Animated, Keyboard, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Animated, Dimensions, Keyboard, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '../lib/supabase';
 
@@ -139,61 +139,72 @@ export default function LoginScreen() {
     }
   };
 
-  return (
-    <View style={styles.container}>
-      {/* Login Elements */}
-      <Animated.View 
-        style={[
-          styles.loginContainer,
-          {
-            opacity: loginOpacity,
-            transform: [{ translateY: loginTranslateY }],
-          },
-        ]}
-      >
-        <Text style={styles.title}>Welcome Back</Text>
-        <Text style={styles.subtitle}>Sign in to continue your journey</Text>
-        
-        <TouchableOpacity style={styles.faceIdButton} onPress={handleFaceID}>
-          <Text style={styles.faceIdText}>🔐 Use Face ID</Text>
-        </TouchableOpacity>
+  const screenHeight = Dimensions.get('window').height;
 
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          placeholderTextColor="#666"
-          value={username}
-          onChangeText={setUsername}
-          autoCapitalize="none"
-          keyboardType="email-address"
-        />
-        
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          placeholderTextColor="#666"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          onBlur={() => Keyboard.dismiss()}
-        />
-        
-        <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-          <Text style={styles.loginButtonText}>Sign In</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.registerLink}
-          onPress={() => router.push('/register')}
+  return (
+    <ScrollView 
+      style={styles.scrollViewContainer}
+      contentContainerStyle={{ flexGrow: 1 }}
+    >
+      <View style={[styles.container, { minHeight: screenHeight }]}>
+        {/* Login Elements */}
+        <Animated.View 
+          style={[
+            styles.loginContainer,
+            {
+              opacity: loginOpacity,
+              transform: [{ translateY: loginTranslateY }],
+            },
+          ]}
         >
-          <Text style={styles.registerText}>New user? Register here</Text>
-        </TouchableOpacity>
-      </Animated.View>
-    </View>
+          <Text style={styles.title}>Welcome Back</Text>
+          <Text style={styles.subtitle}>Sign in to continue your journey</Text>
+          
+          <TouchableOpacity style={styles.faceIdButton} onPress={handleFaceID}>
+            <Text style={styles.faceIdText}>🔐 Use Face ID</Text>
+          </TouchableOpacity>
+
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            placeholderTextColor="#666"
+            value={username}
+            onChangeText={setUsername}
+            autoCapitalize="none"
+            keyboardType="email-address"
+          />
+          
+          <TextInput
+            style={styles.input}
+            placeholder="Password"
+            placeholderTextColor="#666"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            onBlur={() => Keyboard.dismiss()}
+          />
+          
+          <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
+            <Text style={styles.loginButtonText}>Sign In</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.registerLink}
+            onPress={() => router.push('/register')}
+          >
+            <Text style={styles.registerText}>New user? Register here</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  scrollViewContainer: {
+    flex: 1,
+    backgroundColor: '#0a0a0a',
+  },
   container: {
     flex: 1,
     backgroundColor: '#0a0a0a',

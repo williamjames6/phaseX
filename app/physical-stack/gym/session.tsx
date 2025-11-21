@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { v4 as uuidv4 } from 'uuid';
 import { dateFormatter } from '../../../assets/helpers/dateFormatter';
@@ -31,10 +31,6 @@ export default function GymSession() {
   const [currentSuperset, setCurrentSuperset] = useState(1);
   const [isNewSession, setIsNewSession] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
-  const scrollViewRef = useRef<ScrollView>(null);
-  const setsScrollViewRefs = useRef<{ [key: string]: ScrollView | null }>({});
-  const inputRefs = useRef<{ [key: string]: TextInput | null }>({});
-  const supersetPositionYRef = useRef<{ [key: string]: number }>({});
 
 
   useEffect(() => {
@@ -317,14 +313,6 @@ export default function GymSession() {
       )
     }));
     
-    // Auto-scroll the sets ScrollView to the end
-    setTimeout(() => {
-      const scrollViewRef = setsScrollViewRefs.current[exerciseId];
-      if (scrollViewRef) {
-        scrollViewRef.scrollToEnd({ animated: true });
-      }
-    }, 100);
-    
     // Auto-save after adding set with delay to ensure state is updated
     setTimeout(() => {
       handleSaveSession();
@@ -477,42 +465,6 @@ export default function GymSession() {
       ...prev,
       [newSupersetNumber]: [createEmptyExercise(newSupersetNumber, 1)]
     }));
-    
-    console.log(scrollViewRef?.current?.scrollToEnd);
-    // Auto-scroll to bottom after adding superset
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 100);
-  };
-
-  const scrollToInput = (inputId: string) => {
-
-    // Find the superset container that contains this input
-    const supersetEntries = Object.entries(supersets);
-    let targetSupersetKey: string | null = null;
-    
-    for (let i = 0; i < supersetEntries.length; i++) {
-      const [supersetNum, exercises] = supersetEntries[i];
-      const exercise = exercises.find(ex => ex.id === inputId);
-      if (exercise) {
-        targetSupersetKey = supersetNum;
-        break;
-      }
-    }
-    
-    if (targetSupersetKey) {
-      // Prefer measured Y position over estimates
-      const y = supersetPositionYRef.current[targetSupersetKey];
-      const targetY = typeof y === 'number' ? Math.max(0, y - 80) : null;
-
-      // Use a short delay to ensure keyboard is fully up
-      setTimeout(() => {
-        scrollViewRef.current?.scrollTo({
-          y: targetY ?? 0,
-          animated: true
-        });
-      }, 250);
-    }
   };
 
 
@@ -532,7 +484,6 @@ export default function GymSession() {
         //keyboardVerticalOffset={Platform.OS === "ios" ? 200 : 0}
       >
         <ScrollView 
-          ref={scrollViewRef} 
           style={styles.scrollView}
           contentContainerStyle={styles.scrollViewContent}
           keyboardShouldPersistTaps="handled"
@@ -551,9 +502,6 @@ export default function GymSession() {
             <View
               key={supersetNum}
               style={styles.supersetContainer}
-              onLayout={(e) => {
-                supersetPositionYRef.current[supersetNum] = e.nativeEvent.layout.y;
-              }}
             >
               <View style={styles.supersetHeader}>
                 <Text style={styles.supersetTitle}># {supersetNum}</Text>
@@ -579,18 +527,12 @@ export default function GymSession() {
                     {/* Exercise Name Column */}
                     <View style={styles.exerciseColumn}>
                       <TextInput
-                        ref={(ref) => {
-                          if (ref) {
-                            inputRefs.current[`${exercise.id}-name`] = ref;
-                          }
-                        }}
                         style={styles.exerciseNameInput}
                         placeholder="Exercise Name"
                         multiline={true}
                         value={exercise.exercise_name}
                         onChangeText={(value) => handleUpdateExercise(exercise.id, parseInt(supersetNum), 'exercise_name', value)}
                         onBlur={() => handleSaveExercise(exercise)}
-                        onFocus={() => scrollToInput(exercise.id)}
                       />
                       {/* Add Exercise Button - Only show on last exercise */}
                       {exerciseIndex === supersetExercises.length - 1 && (
@@ -609,22 +551,12 @@ export default function GymSession() {
                         horizontal 
                         style={styles.setsScrollView}
                         showsHorizontalScrollIndicator={false}
-                        ref={(ref) => {
-                          if (ref) {
-                            setsScrollViewRefs.current[exercise.id] = ref;
-                          }
-                        }}
                       >
                         <View style={styles.setsContainer}>
                         {exercise.sets.map((set, setIndex) => (
                           <View key={setIndex} style={styles.setColumn}>
                             <View style={styles.setInputs}>
                             <TextInput
-                              ref={(ref) => {
-                                if (ref) {
-                                  inputRefs.current[`${exercise.id}-${setIndex}-reps`] = ref;
-                                }
-                              }}
                               style={styles.setInput}
                               placeholder="Reps"
                               value={set.reps?.toString() || ''}
@@ -633,11 +565,6 @@ export default function GymSession() {
                               keyboardType="numeric"
                             />
                             <TextInput
-                              ref={(ref) => {
-                                if (ref) {
-                                  inputRefs.current[`${exercise.id}-${setIndex}-weight`] = ref;
-                                }
-                              }}
                               style={styles.setInput}
                               placeholder="Weight"
                               value={set.weight?.toString() || ''}
@@ -646,11 +573,6 @@ export default function GymSession() {
                               keyboardType="numeric"
                             />
                             <TextInput
-                              ref={(ref) => {
-                                if (ref) {
-                                  inputRefs.current[`${exercise.id}-${setIndex}-time`] = ref;
-                                }
-                              }}
                               style={styles.setInput}
                               placeholder="Time"
                               value={set.time?.toString() || ''}

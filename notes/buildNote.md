@@ -48,9 +48,11 @@ IMPLEMENTED- Time scroll for timestamp
 IMPLEMENTED- Arrowhead direction + change dashed arrow + ball + straighten arrows
 IMPLEMENTED- Timeout for router.replace("/") on appState going to background
 - Linking with [] and {} for timestamps and other dates
+- @ for player mentions
 - Right now, nothing about the chat interaction persists across renders. Very short term --> should be more useful long term
 - Forgot password flow + verify email flow
 - CHAINRUNNER.TS
 - Make subjective feeling for sessions look <Pretty>
 - Modify option for session entries
 - Self vs other data included
+- Holisitic download for all aspects of a givend day of training (Gym + Journal + SS of sketch?)

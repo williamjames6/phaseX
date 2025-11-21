@@ -39,7 +39,7 @@ export default function HomeScreen() {
           router.replace('/');
           console.log('timed out');
           return;
-        }, 300000);
+        }, 600000);
 
 
       } else if (appState === 'active') {

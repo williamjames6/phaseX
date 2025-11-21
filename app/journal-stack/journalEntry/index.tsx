@@ -45,8 +45,26 @@ export default function JournalEntryIndex() {
   const [sketchesWithPaths, setSketchesWithPaths] = useState<Set<string>>(new Set());
   const [playerList, setPlayerList] = useState<string[]>([]);
   const [typingPlayer, setTypingPlayer] = useState<string | null>(null);
+  const [validTimestamps, setValidTimestamps] = useState<string[]>([]);
   let actionAdder = 0;
 
+
+
+  const playerUpdate = async () => {
+    try {
+      const { data, error } = await supabase
+      .from('Sessions')
+      .update({player_mentions: playerList})
+      .eq('id', sessionId);
+
+    } catch (error) {
+      Alert.alert('Error');
+    };
+    };
+
+  useEffect(() => {
+    playerUpdate();
+  }, [playerList]);
 
   // Load existing actions for this session
   const loadExistingActions = async () => {
@@ -183,11 +201,12 @@ export default function JournalEntryIndex() {
   }, [sessionId]);
 
   // Load player mentions on component mount
-  const loadPlayerMentions = async () => {
+  const loadExistingPlayers = async () => {
     try {
       const { data, error } = await supabase
-        .from('playerMentions')
-        .select('name');
+        .from('Sessions')
+        .select('player_mentions')
+        .eq('id', sessionId);
 
       if (error) {
         console.error('Error loading player mentions:', error);
@@ -195,7 +214,7 @@ export default function JournalEntryIndex() {
       }
 
       if (data) {
-        const names = data.map(player => player.name);
+        const names = data[0].player_mentions;
         setPlayerList(names);
       }
     } catch (error) {
@@ -204,7 +223,7 @@ export default function JournalEntryIndex() {
   };
 
   useEffect(() => {
-    loadPlayerMentions();
+    loadExistingPlayers();
   }, []);
 
   // Check sketch paths when screen comes into focus
@@ -266,6 +285,34 @@ export default function JournalEntryIndex() {
     return mentions.join(' ');
   };
 
+  // Function to update valid timestamps array based on current action
+  const updateValidTimestamps = (currentActionId: number) => {
+    const otherActions = actions.filter(action => action.id !== currentActionId);
+    const timestamps = otherActions
+      .map(action => action.timestamp)
+      .filter(timestamp => timestamp && timestamp !== '' && typeof timestamp === 'string')
+      .map(timestamp => timestamp as string);
+    setValidTimestamps(timestamps);
+    console.log(timestamps);
+  };
+
+  // Helper function to parse time mentions from description
+  const parseTimeMentions = (description: string): number[] => {
+    const timeMentionRegex = /\[(\d{1,3}:\d{2})\]/g;
+    const mentions: number[] = [];
+    let match;
+    
+    while ((match = timeMentionRegex.exec(description)) !== null) {
+      const timestampString = match[1];
+      console.log(match);
+      const seconds = timeSwitch(timestampString);
+      if (typeof seconds === 'number') {
+        mentions.push(seconds);
+      }
+    }
+    
+    return mentions;
+  };
 
   // Helper function to add new player to playerMentions table
   const addNewPlayer = async (playerName: string) => {
@@ -275,22 +322,11 @@ export default function JournalEntryIndex() {
     if (playerList.includes(playerName)) {
       return;
     }
+    // Update playerList state
+    console.log("update should trigger now with: ", playerName);
+    setPlayerList(prev => [...prev, playerName]);
+    console.log(playerList);
 
-    try {
-      const { error } = await supabase
-        .from('playerMentions')
-        .upsert([{ name: playerName }]);
-
-      if (error) {
-        console.error('Error adding new player:', error);
-        return;
-      }
-
-      // Update playerList state
-      setPlayerList(prev => [...prev, playerName]);
-    } catch (error) {
-      console.error('Error adding new player:', error);
-    }
   };
 
   const handleAddAction = () => {
@@ -458,7 +494,7 @@ export default function JournalEntryIndex() {
       return;
     }
     
-    // For description field, handle player mention tracking
+    // For description field, handle player mention tracking and time mention validation
     if (field === 'description' && typeof value === 'string') {
       const description = value;
       const lastChar = description.length > 0 ? description[description.length - 1] : '';
@@ -491,6 +527,23 @@ export default function JournalEntryIndex() {
             addNewPlayer(typingPlayer);
           }
           setTypingPlayer(null);
+        }
+      }
+
+      // Check if last character is "]" for time mention validation
+      if (lastChar === ']') {
+        // Find the most recent [mm:ss] or [mmm:ss] pattern before the ]
+        const lastBracketIndex = description.lastIndexOf('[');
+        if (lastBracketIndex !== -1) {
+          const bracketContent = description.substring(lastBracketIndex + 1, description.length - 1);
+          // Check if it matches the pattern mm:ss or mmm:ss
+          const timePattern = /^(\d{2,3}:\d{2})$/;
+          if (timePattern.test(bracketContent)) {
+            // Validate against validTimestamps array
+            if (!validTimestamps.includes(bracketContent)) {
+              Alert.alert('Please enter a valid time stamp');
+            }
+          }
         }
       }
     }
@@ -642,19 +695,22 @@ export default function JournalEntryIndex() {
                 placeholderTextColor="#999"
                 multiline={true}
                 scrollEnabled={false}
-                onBlur={() => {
+                onFocus={() => {
+                  updateValidTimestamps(action.id);
+                }}
+                onBlur={async () => {
                   if (typingPlayer !== null && typingPlayer !== '') {
                     addNewPlayer(typingPlayer);
                     setTypingPlayer(null);
                   }
                   handleSubmitAction(action, false);
                 }}
-                onSelectionChange={() => {
-                  if (typingPlayer !== null && typingPlayer !== '') {
-                    addNewPlayer(typingPlayer);
-                    setTypingPlayer(null);
-                  }
-                }}
+                // onSelectionChange={() => {
+                //   if (typingPlayer !== null && typingPlayer !== '') {
+                //     addNewPlayer(typingPlayer);
+                //     setTypingPlayer(null);
+                //   }
+                // }}
               />
             </TouchableWithoutFeedback>
           ))}
@@ -751,19 +807,37 @@ export default function JournalEntryIndex() {
                   onChangeText={(value) => updateAction(action.id, 'description', value)}
                   placeholderTextColor="#999"
                   multiline={true}
-                  onBlur={() => {
+                  onFocus={() => {
+                    updateValidTimestamps(action.id);
+                  }}
+                  onBlur={async () => {
                     if (typingPlayer !== null && typingPlayer !== '') {
                       addNewPlayer(typingPlayer);
                       setTypingPlayer(null);
+                    }
+                    // Parse time mentions and update backend
+                    const timeMentionsArray = parseTimeMentions(action.description);
+                    console.log(timeMentionsArray);
+                    try {
+                      console.log(timeMentionsArray);
+                      const { error } = await supabase
+                        .from('Actions')
+                        .update({ time_mentions: timeMentionsArray })
+                        .eq('id', action.dbId);
+                      if (error) {
+                        console.error('Error updating time mentions:', error);
+                      }
+                    } catch (error) {
+                      console.error('Error updating time mentions:', error);
                     }
                     handleSubmitAction(action, false);
                   }}
-                  onSelectionChange={() => {
-                    if (typingPlayer !== null && typingPlayer !== '') {
-                      addNewPlayer(typingPlayer);
-                      setTypingPlayer(null);
-                    }
-                  }}
+                  // onSelectionChange={() => {
+                  //   if (typingPlayer !== null && typingPlayer !== '') {
+                  //     addNewPlayer(typingPlayer);
+                  //     setTypingPlayer(null);
+                  //   }
+                  // }}
                 />
                 <View style={styles.buttonColumn}>
                   <TouchableOpacity 
