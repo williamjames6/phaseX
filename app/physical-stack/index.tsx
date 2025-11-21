@@ -44,7 +44,6 @@ export default function PhysicalIndex() {
             onChangeText={setTextInputValue}
             multiline={false}
           />
-          <Text style={styles.textInput}> Hey </Text>
         </TouchableOpacity>
       </ScrollView>
       

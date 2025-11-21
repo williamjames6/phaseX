@@ -304,7 +304,6 @@ export default function JournalEntryIndex() {
     
     while ((match = timeMentionRegex.exec(description)) !== null) {
       const timestampString = match[1];
-      console.log(match);
       const seconds = timeSwitch(timestampString);
       if (typeof seconds === 'number') {
         mentions.push(seconds);

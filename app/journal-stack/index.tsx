@@ -1,12 +1,8 @@
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { File, Paths } from 'expo-file-system';
 import { router, useFocusEffect } from 'expo-router';
-import * as Sharing from 'expo-sharing';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Image, Keyboard, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Alert, Keyboard, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { dateFormatter } from "../../assets/helpers/dateFormatter";
-import { convertToCSV } from "../../assets/helpers/json2SCV";
-import { timeSwitch } from "../../assets/helpers/timeSwitch";
 import SidebarModal from '../../components/SidebarModal';
 import { useHeaderWithMenu } from '../../hooks/useHeaderWithMenu';
 import { supabase } from '../../lib/supabase';
@@ -17,7 +13,6 @@ interface Session {
   type: string;
   description: string | null;
 }
-const MAX_DOWNLOAD_INT = 10000000;
 
 export default function JournalIndex() {
   const [recentSessions, setRecentSessions] = useState<Session[]>([]);
@@ -27,35 +22,18 @@ export default function JournalIndex() {
   const [offset, setOffset] = useState(0);
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedType, setSelectedType] = useState('training');
   const [sessionDescription, setSessionDescription] = useState('');
   const limit = 10;
   const today = new Date();
-  const monthAgo = new Date();
   const twoYearsAgo = new Date();
   twoYearsAgo.setFullYear(today.getFullYear() - 2);
-  monthAgo.setMonth(today.getMonth()- 1);
-  const [startDate, setStartDate] = useState<Date | null>(monthAgo);
-  const [endDate, setEndDate] = useState<Date | null>(today);
-  const [showStartPicker, setShowStartPicker] = useState(false);
-  const [showEndPicker, setShowEndPicker] = useState(false);
 
   useEffect(() => {
     console.log("Mounted: journal stack index page");
     return () => console.log("Unmounted: journal stack index page");
   }, []);
-
-  // Memoize the headerRight function to prevent unnecessary re-renders
-  const headerRight = useMemo(() => () => (
-    <TouchableOpacity onPress={() => setShowDownloadModal(true)}>
-      <Image
-        source={require('../../assets/images/download.png')}
-        style={{height: 25, width: 25, tintColor: 'white'}}
-      />
-    </TouchableOpacity>
-  ), []);
 
   // Memoize the onMenuPress callback
   const handleMenuPress = useCallback(() => {
@@ -65,70 +43,7 @@ export default function JournalIndex() {
   useHeaderWithMenu({
     title: 'Journal',
     onMenuPress: handleMenuPress,
-    headerRight: headerRight,
   });
-
-  const downloadMonthlyActions = async (start: Date | null, end: Date | null) => {
-    console.log("Start: ", start, "End: ", end);
-    if (!start || !end) {
-      Alert.alert("Please enter a valid date range");
-      return;
-    }
-    if (start > end) {
-      let temp = start;
-      start = end;
-      end = temp;
-    }
-    console.log("Start:  ", start, "End:  ", end);
-    const firstDay = dateFormatter(start) + 'T00:00:00.000Z';
-    const lastDay = dateFormatter(end) + 'T23:59:59.999Z';
-    const { data, error } = await supabase //don't like this format without "try, catch" blocks but just trying to get functionality right now
-      .from('Actions')
-      .select('time_stamp_seconds, description, session_date, self')
-      .gte('session_date', firstDay)
-      .lte('session_date', lastDay)
-      .order("session_date", {ascending: true});
-  
-    if (error || !data) {
-      console.log(error);
-      Alert.alert("Failure to retrieve requested actions. What are you gonna do, cry about it? Fuck you.");
-      return;
-    }
-
-    let processedData = data.map(action => ({
-      session_date: action.session_date,
-      self: action.self,
-      time_stamp: timeSwitch(action.time_stamp_seconds),
-      description: action.description,
-    }));
-
-    const csv = convertToCSV(processedData);
-
-    let random = Math.floor(Math.random() * MAX_DOWNLOAD_INT).toString();
-    console.log(random);
-    const fileName = `${random}_actions.csv`; 
-    try { 
-      const file = new File(Paths.cache, fileName);
-      file.create(); // can throw an error if the file already exists or no permission to create it
-      file.write(csv);
-      console.log(file.textSync)
-    } catch (error) {
-      console.log("what the heck: ", error);
-      return;
-    }
-    console.log("File: ", File, typeof(File));
-    console.log("Paths: ", Paths.cache, typeof(Paths));
-    // after fileUri is written
-    const fileUri = Paths.cache.uri + fileName;
-    if (await Sharing.isAvailableAsync()) {
-      await Sharing.shareAsync(fileUri, { mimeType: 'text/csv' });
-      setShowDownloadModal(false);
-      setStartDate(null);
-      setEndDate(null);
-    } else {
-      console.warn("Sharing not available");
-    };
-  }
   
 
   // Memoize loadRecentSessions to prevent unnecessary re-creations
@@ -405,80 +320,6 @@ export default function JournalIndex() {
       ) : (
         <Text style={styles.noSessionsText}>No sessions yet. Create your first one!</Text>
       )}
-      {/* Download Sessions Modal */}
-      <Modal
-        visible={showDownloadModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowDownloadModal(false)}
-      >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Action Download</Text>
-              
-              {/* Date Range input */}
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Date Range:</Text>
-
-                {/* Start Date */}
-                {/* <Button
-                  title={startDate ? startDate.toDateString() : "Select Start Date"}
-                  onPress={() => setShowStartPicker(!showStartPicker)}
-                /> */}
-                {/* {showStartPicker && ( */}
-                <View style={styles.datePicker}>
-                  <DateTimePicker
-                    value={startDate || monthAgo}
-                    mode="date"
-                    //display={Platform.OS === "ios" ? "inline" : "default"}
-                    display={Platform.OS === 'ios' ? 'default' : 'calendar'}
-                    minimumDate={twoYearsAgo}
-                    maximumDate={today}
-                    onChange={(event, date) => {
-                      //setShowStartPicker(false);
-                      if (date) setStartDate(date);
-                    }}
-                  />
-              </View>
-                <View style={styles.datePicker}>
-                  <DateTimePicker
-                    value={endDate || today}
-                    mode="date"
-                    display={Platform.OS === "ios" ? "default" : "calendar"}
-                    minimumDate={twoYearsAgo}
-                    maximumDate={today}
-                    onChange={(event, date) => {
-                      setShowEndPicker(false);
-                      if (date) setEndDate(date);
-                    }}
-                  />
-                </View>
-              </View>
-              
-              {/* Action Buttons */}
-              <View style={styles.modalButtons}>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.cancelButton]}
-                  onPress={() => {
-                    setStartDate(null);
-                    setEndDate(null);
-                    setShowDownloadModal(false);
-                  }}
-                >
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.createButton]}
-                  onPress={() => downloadMonthlyActions(startDate, endDate)}
-                >
-                  <Text style={styles.createButtonText}>Download</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
       {/* New Session Modal */}
       <Modal
         visible={showModal}

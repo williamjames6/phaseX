@@ -1,19 +1,24 @@
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from "@react-native-community/datetimepicker";
 import Constants from 'expo-constants';
+import { File, Paths } from 'expo-file-system';
 import { router } from 'expo-router';
+import * as Sharing from 'expo-sharing';
 import { OpenAI } from 'openai';
-import { useEffect, useRef, useState } from 'react';
-import { Animated, Dimensions, Image, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Animated, Dimensions, Image, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import useAppState from 'react-native-useappstate';
+import { dateFormatter } from '../../assets/helpers/dateFormatter';
+import { convertToCSV } from '../../assets/helpers/json2SCV';
+import { timeSwitch } from '../../assets/helpers/timeSwitch';
 import { chainRunner } from '../../chainRunner';
 import SidebarModal from '../../components/SidebarModal';
 import { useHeaderWithMenu } from '../../hooks/useHeaderWithMenu';
 import { supabase } from '../../lib/supabase';
-interface InputItem {
-  role: string;
-  content: string;
-}
+
+
 const { width } = Dimensions.get('window');
+const MAX_DOWNLOAD_INT = 10000000;
 const client = new OpenAI({
   apiKey: Constants.expoConfig?.extra?.openaiApiKey,
   dangerouslyAllowBrowser: true // Required for Expo/React Native
@@ -25,11 +30,19 @@ export default function HomeScreen() {
   const [response, setResponse] = useState('');
   const [chatHistory, setChatHistory] = useState<string[]>([]);
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const today = new Date();
+  const monthAgo = new Date();
+  const twoYearsAgo = new Date();
+  twoYearsAgo.setFullYear(today.getFullYear() - 2);
+  monthAgo.setMonth(today.getMonth() - 1);
+  const [startDate, setStartDate] = useState<Date | null>(monthAgo);
+  const [endDate, setEndDate] = useState<Date | null>(today);
   const appState = useAppState();
   const rotationValue = useRef(new Animated.Value(0)).current;
   const timeoutRef = useRef<number | null>(null);
 
-  //auto log out if screen in background for 5 minutes or more
+  //auto log out if screen in background for 10 minutes or more
   useEffect(() => {
       if (appState === 'background') {
         if (timeoutRef.current) {
@@ -105,9 +118,145 @@ export default function HomeScreen() {
     setIsSidebarVisible(!isSidebarVisible);
   };
 
+  // Memoize the headerRight function to prevent unnecessary re-renders
+  const headerRight = useMemo(() => () => (
+    <TouchableOpacity onPress={() => setShowDownloadModal(true)}>
+      <Image
+        source={require('../../assets/images/download.png')}
+        style={{height: 25, width: 25, tintColor: 'white'}}
+      />
+    </TouchableOpacity>
+  ), []);
+
+  const downloadMonthlyActions = async (start: Date | null, end: Date | null) => {
+    if (!start || !end) {
+      Alert.alert("Please enter a valid date range");
+      return;
+    }
+    if (start > end) {
+      let temp = start;
+      start = end;
+      end = temp;
+    }
+    console.log("Start:  ", start, "End:  ", end);
+    const firstDay = dateFormatter(start) //+ 'T00:00:00.000Z';
+    const lastDay = dateFormatter(end) //+ 'T23:59:59.999Z';
+    try {
+      //specific action
+      const { data: actionData, error: actionError } = await supabase 
+      .from('Actions')
+      .select('session_date, time_stamp_seconds, description, player_mentions, time_mentions, self')
+      .gte('session_date', firstDay)
+      .lte('session_date', lastDay)
+      .order("session_date", {ascending: true});
+
+      if (actionError) {console.log(actionError)};
+      
+      //gym data
+      const { data: gymData, error: gymError } = await supabase 
+      .from('GymSessions')
+      .select('session_date, data')
+      .gte('session_date', firstDay)
+      .lte('session_date', lastDay)
+      .order("session_date", {ascending: true});
+
+      if (gymError) {console.log(gymError)};
+      //field session data
+      const { data: fieldData, error: fieldError } = await supabase
+      .from('Sessions')
+      .select('date, type, description, physical_score, mental_score, overall_score, player_mentions')
+      .gte('date', firstDay)
+      .lte('date', lastDay)
+      .order("date", {ascending: true});
+
+      if (fieldError) {console.log(fieldError)};
+
+      //##########################################################################################
+      
+      if (!gymData || !fieldData || !actionData) {return};
+      
+      let processedData: any[] = [];
+      let iterator = new Date(start);
+      const endDate = new Date(end);
+      let actionIndex = 0;
+      let fieldIndex = 0;
+      let gymIndex = 0;
+      
+      while (iterator <= endDate) {
+        let dateObject = {
+          date: dateFormatter(iterator),
+          gym_data: "",
+          session_data: ""
+        };
+        
+        // Check bounds before accessing gymData
+        if (gymIndex < gymData.length && gymData[gymIndex]?.session_date == dateFormatter(iterator)) {
+          dateObject.gym_data = JSON.stringify(gymData[gymIndex].data, null, 2);
+          gymIndex++;
+        }
+
+        // Check bounds before accessing fieldData
+        if (fieldIndex < fieldData.length && fieldData[fieldIndex]?.date == dateFormatter(iterator)) {
+          let { date, ...sessionWithoutDate} = fieldData[fieldIndex];
+          let relevantActions = [];
+          
+          // Check bounds before accessing actionData
+          while (actionIndex < actionData.length && actionData[actionIndex]?.session_date == fieldData[fieldIndex].date) {
+            let { session_date, ...actionWithoutDate} = actionData[actionIndex];
+            let { time_stamp_seconds, ...actionWithoutTime} = actionWithoutDate;
+            let actionWithTimestamp = {...actionWithoutTime, time_stamp: timeSwitch(actionData[actionIndex].time_stamp_seconds)}
+            relevantActions.push(actionWithTimestamp);
+            actionIndex++
+          };
+          
+          let final = {...sessionWithoutDate, actions: relevantActions};
+          dateObject.session_data = JSON.stringify(final);
+          fieldIndex++     
+        }
+        
+        processedData.push(dateObject);
+
+        // Safely increment date
+        iterator.setDate(iterator.getDate() + 1);
+      };
+      
+
+      const csv = convertToCSV(processedData);
+
+      let random = Math.floor(Math.random() * MAX_DOWNLOAD_INT).toString();
+      console.log(random);
+      const fileName = `${random}_actions.csv`; 
+      try { 
+        const file = new File(Paths.cache, fileName);
+        file.create(); // can throw an error if the file already exists or no permission to create it
+        file.write(csv);
+        console.log(file.textSync)
+      } catch (error) {
+        console.log("what the heck: ", error);
+        return;
+      }
+
+      // after fileUri is written
+      const fileUri = Paths.cache.uri + fileName;
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri, { mimeType: 'text/csv' });
+        setShowDownloadModal(false);
+        setStartDate(null);
+        setEndDate(null);
+      } else {
+        console.warn("Sharing not available");
+      };
+
+    } catch (actionError: any) {
+      Alert.alert("Failure to retrieve requested actions. What are you gonna do, cry about it? Fuck you.", actionError);
+      return;
+    };
+  }
+
   useHeaderWithMenu({
     title: 'phaseX',
     onMenuPress: toggleSidebar,
+    headerRight: headerRight,
   });
 
   return (
@@ -178,6 +327,74 @@ export default function HomeScreen() {
         </View>
       </KeyboardAvoidingView>
 
+      {/* Download Sessions Modal */}
+      <Modal
+        visible={showDownloadModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowDownloadModal(false)}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Data Download</Text>
+              
+              {/* Date Range input */}
+              <View style={styles.modalInputContainer}>
+                <Text style={styles.inputLabel}>Date Range:</Text>
+
+                <View style={styles.datePicker}>
+                  <DateTimePicker
+                    value={startDate || monthAgo}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'default' : 'calendar'}
+                    minimumDate={twoYearsAgo}
+                    maximumDate={today}
+                    onChange={(event, date) => {
+                      //setShowStartPicker(false);
+                      if (date) setStartDate(date);
+                    }}
+                  />
+              </View>
+                <View style={styles.datePicker}>
+                  <DateTimePicker
+                    value={endDate || today}
+                    mode="date"
+                    display={Platform.OS === "ios" ? "default" : "calendar"}
+                    minimumDate={twoYearsAgo}
+                    maximumDate={today}
+                    onChange={(event, date) => {
+                      //setShowEndPicker(false);
+                      if (date) setEndDate(date);
+                    }}
+                  />
+                </View>
+              </View>
+              
+              {/* Action Buttons */}
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.cancelButton]}
+                  onPress={() => {
+                    setStartDate(null);
+                    setEndDate(null);
+                    setShowDownloadModal(false);
+                  }}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.createButton]}
+                  onPress={() => downloadMonthlyActions(startDate, endDate)}
+                >
+                  <Text style={styles.createButtonText}>Download</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
       <SidebarModal visible={isSidebarVisible} onClose={() => setIsSidebarVisible(false)} />
     </View>
   );
@@ -246,13 +463,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   inputContainer: {
-    //height: 36,
     width: width*.9,
     marginHorizontal: 0,
     paddingRight: 0,
     paddingLeft: 0,
-    //position: 'relative',
-    //alignSelf: 'stretch',
     borderWidth: 1,
     borderColor: '#ccc',
     borderRadius: 24,
@@ -266,15 +480,8 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingHorizontal: 8,
     fontSize: 16,
-    //minHeight: 50,
-    // minHeight: 44,
-    // maxHeight: 160,
   },
   sendButton: {
-    // position: 'absolute',
-    // right: 14,
-    // top: '50%',
-    // transform: [{ translateY: -16 }],
     width: 32,
     height: 32,
     borderRadius: 16,
@@ -309,5 +516,65 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 20,
+    width: '80%',
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    color: '#333',
+  },
+  modalInputContainer: {
+    width: '100%',
+    marginBottom: 15,
+  },
+  inputLabel: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 5,
+    color: '#555',
+  },
+  datePicker: {
+    margin: 6,
+    alignSelf: 'center'
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    marginTop: 20,
+  },
+  modalButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  cancelButton: {
+    backgroundColor: '#ccc',
+  },
+  cancelButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  createButton: {
+    backgroundColor: '#000',
+  },
+  createButtonText: {
+    color: 'yellow',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 }); 

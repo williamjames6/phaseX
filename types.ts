@@ -26,3 +26,15 @@ export interface Sketch {
   created_at: string;
   updated_at: string;
 } 
+
+export interface Exercise {
+  id: string;
+  exercise_name: string;
+  superset_number: number;
+  exercise_number: number;
+  sets: {
+    reps: number | null;
+    weight: number | null;
+    time: number | null;
+  }[];
+}

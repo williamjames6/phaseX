@@ -157,11 +157,10 @@ export default function LoginScreen() {
             },
           ]}
         >
-          <Text style={styles.title}>Welcome Back</Text>
-          <Text style={styles.subtitle}>Sign in to continue your journey</Text>
+          {/* <Text style={styles.title}>Welcome back</Text> */}
           
           <TouchableOpacity style={styles.faceIdButton} onPress={handleFaceID}>
-            <Text style={styles.faceIdText}>🔐 Use Face ID</Text>
+            <Text style={styles.faceIdText}>Ballsack ID</Text>
           </TouchableOpacity>
 
           <TextInput
@@ -237,7 +236,7 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     marginBottom: 30,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: 'yellow',
   },
   faceIdText: {
     color: '#ffffff',
@@ -259,13 +258,13 @@ const styles = StyleSheet.create({
   loginButton: {
     width: '100%',
     height: 56,
-    backgroundColor: '#007AFF',
+    backgroundColor: '#0a0a0a',
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 8,
     marginBottom: 24,
-    shadowColor: '#007AFF',
+    shadowColor: 'yellow',
     shadowOffset: {
       width: 0,
       height: 4,
@@ -283,7 +282,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   registerText: {
-    color: '#007AFF',
+    color: '#ffffff',
     fontSize: 16,
     fontWeight: '500',
   },

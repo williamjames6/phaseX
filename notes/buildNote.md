@@ -55,4 +55,5 @@ IMPLEMENTED- Timeout for router.replace("/") on appState going to background
 - Make subjective feeling for sessions look <Pretty>
 - Modify option for session entries
 - Self vs other data included
-- Holisitic download for all aspects of a givend day of training (Gym + Journal + SS of sketch?)
+PARTIAL- Holisitic download for all aspects of a givend day of training (Gym + Journal + SS of sketch?) 
+            - Problems right now: handling of null/empty returns from backend, formatting of final CSV possibly related to JSON.stringify being called on already stringified content
