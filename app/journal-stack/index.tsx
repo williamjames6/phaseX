@@ -1,5 +1,4 @@
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { useNavigation } from "@react-navigation/native";
 import { File, Paths } from 'expo-file-system';
 import { router, useFocusEffect } from 'expo-router';
 import * as Sharing from 'expo-sharing';
@@ -33,7 +32,6 @@ export default function JournalIndex() {
   const [selectedType, setSelectedType] = useState('training');
   const [sessionDescription, setSessionDescription] = useState('');
   const limit = 10;
-  const navigation = useNavigation();
   const today = new Date();
   const monthAgo = new Date();
   const twoYearsAgo = new Date();
@@ -84,8 +82,6 @@ export default function JournalIndex() {
     console.log("Start:  ", start, "End:  ", end);
     const firstDay = dateFormatter(start) + 'T00:00:00.000Z';
     const lastDay = dateFormatter(end) + 'T23:59:59.999Z';
-    console.log(firstDay, lastDay);
-    // const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
     const { data, error } = await supabase //don't like this format without "try, catch" blocks but just trying to get functionality right now
       .from('Actions')
       .select('time_stamp_seconds, description, session_date, self')
@@ -390,12 +386,6 @@ export default function JournalIndex() {
                         </Text>
                       </View>                 
                     }
-                    {/* <Text style={styles.sessionButtonText}>
-                      {session.date === null ? 'MASTER' : `${session.date}`}
-                    </Text>
-                    <Text style={styles.loadingText}>
-                      {session.description ? session.description : `${session.type.charAt(0).toUpperCase() + session.type.slice(1)}`}
-                    </Text> */}
                   </View>
             </TouchableOpacity>
           ))}
