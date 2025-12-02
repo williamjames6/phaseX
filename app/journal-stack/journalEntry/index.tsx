@@ -57,6 +57,7 @@ export default function JournalEntryIndex() {
       .update({player_mentions: playerList})
       .eq('id', sessionId);
 
+      console.log(playerList);
     } catch (error) {
       Alert.alert('Error');
     };
@@ -341,7 +342,7 @@ export default function JournalEntryIndex() {
     actionAdder++;
   };
 
-  const handleSubmitAction = async (action: Action, fromTimeStamp: boolean) => {
+  const handleSubmitAction = async (action: Action) => {
     if (!sessionId) {
       Alert.alert('Error', 'No session ID found');
       return;
@@ -536,7 +537,7 @@ export default function JournalEntryIndex() {
         if (lastBracketIndex !== -1) {
           const bracketContent = description.substring(lastBracketIndex + 1, description.length - 1);
           // Check if it matches the pattern mm:ss or mmm:ss
-          const timePattern = /^(\d{2,3}:\d{2})$/;
+          const timePattern = /^(\d{1,3}:\d{2})$/;
           if (timePattern.test(bracketContent)) {
             // Validate against validTimestamps array
             if (!validTimestamps.includes(bracketContent)) {
@@ -650,7 +651,7 @@ export default function JournalEntryIndex() {
     const updatedAction = { ...targetAction, timestamp: formattedTimestamp };
 
     updateAction(targetAction.id, 'timestamp', formattedTimestamp);
-    handleSubmitAction(updatedAction, true);
+    handleSubmitAction(updatedAction);
     closePicker();
   };
 
@@ -702,7 +703,7 @@ export default function JournalEntryIndex() {
                     addNewPlayer(typingPlayer);
                     setTypingPlayer(null);
                   }
-                  handleSubmitAction(action, false);
+                  handleSubmitAction(action);
                 }}
                 // onSelectionChange={() => {
                 //   if (typingPlayer !== null && typingPlayer !== '') {
@@ -816,9 +817,7 @@ export default function JournalEntryIndex() {
                     }
                     // Parse time mentions and update backend
                     const timeMentionsArray = parseTimeMentions(action.description);
-                    console.log(timeMentionsArray);
                     try {
-                      console.log(timeMentionsArray);
                       const { error } = await supabase
                         .from('Actions')
                         .update({ time_mentions: timeMentionsArray })
@@ -829,14 +828,8 @@ export default function JournalEntryIndex() {
                     } catch (error) {
                       console.error('Error updating time mentions:', error);
                     }
-                    handleSubmitAction(action, false);
+                    handleSubmitAction(action);
                   }}
-                  // onSelectionChange={() => {
-                  //   if (typingPlayer !== null && typingPlayer !== '') {
-                  //     addNewPlayer(typingPlayer);
-                  //     setTypingPlayer(null);
-                  //   }
-                  // }}
                 />
                 <View style={styles.buttonColumn}>
                   <TouchableOpacity 
@@ -978,7 +971,7 @@ const styles = StyleSheet.create({
   },
   descriptionInput: {
     flex: 4,
-    //height: 80,
+    flexDirection: "row",
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 8,

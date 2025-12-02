@@ -173,7 +173,10 @@ export default function HomeScreen() {
 
       //##########################################################################################
       
-      if (!gymData || !fieldData || !actionData) {return};
+      // Default to empty arrays if data is null/undefined to allow partial downloads
+      const safeGymData = gymData || [];
+      const safeFieldData = fieldData || [];
+      const safeActionData = actionData || [];
       
       let processedData: any[] = [];
       let iterator = new Date(start);
@@ -185,32 +188,32 @@ export default function HomeScreen() {
       while (iterator <= endDate) {
         let dateObject = {
           date: dateFormatter(iterator),
-          gym_data: "",
-          session_data: ""
+          gym_data: {},
+          session_data: {}
         };
         
         // Check bounds before accessing gymData
-        if (gymIndex < gymData.length && gymData[gymIndex]?.session_date == dateFormatter(iterator)) {
-          dateObject.gym_data = JSON.stringify(gymData[gymIndex].data, null, 2);
+        if (gymIndex < safeGymData.length && safeGymData[gymIndex]?.session_date == dateFormatter(iterator)) {
+          dateObject.gym_data = safeGymData[gymIndex].data;
           gymIndex++;
         }
 
         // Check bounds before accessing fieldData
-        if (fieldIndex < fieldData.length && fieldData[fieldIndex]?.date == dateFormatter(iterator)) {
-          let { date, ...sessionWithoutDate} = fieldData[fieldIndex];
+        if (fieldIndex < safeFieldData.length && safeFieldData[fieldIndex]?.date == dateFormatter(iterator)) {
+          let { date, ...sessionWithoutDate} = safeFieldData[fieldIndex];
           let relevantActions = [];
           
           // Check bounds before accessing actionData
-          while (actionIndex < actionData.length && actionData[actionIndex]?.session_date == fieldData[fieldIndex].date) {
-            let { session_date, ...actionWithoutDate} = actionData[actionIndex];
+          while (actionIndex < safeActionData.length && safeActionData[actionIndex]?.session_date == safeFieldData[fieldIndex].date) {
+            let { session_date, ...actionWithoutDate} = safeActionData[actionIndex];
             let { time_stamp_seconds, ...actionWithoutTime} = actionWithoutDate;
-            let actionWithTimestamp = {...actionWithoutTime, time_stamp: timeSwitch(actionData[actionIndex].time_stamp_seconds)}
+            let actionWithTimestamp = {...actionWithoutTime, time_stamp: timeSwitch(safeActionData[actionIndex].time_stamp_seconds)}
             relevantActions.push(actionWithTimestamp);
             actionIndex++
           };
           
           let final = {...sessionWithoutDate, actions: relevantActions};
-          dateObject.session_data = JSON.stringify(final);
+          dateObject.session_data = final;
           fieldIndex++     
         }
         
@@ -221,16 +224,15 @@ export default function HomeScreen() {
       };
       
 
+
       const csv = convertToCSV(processedData);
 
       let random = Math.floor(Math.random() * MAX_DOWNLOAD_INT).toString();
-      console.log(random);
       const fileName = `${random}_actions.csv`; 
       try { 
         const file = new File(Paths.cache, fileName);
         file.create(); // can throw an error if the file already exists or no permission to create it
         file.write(csv);
-        console.log(file.textSync)
       } catch (error) {
         console.log("what the heck: ", error);
         return;

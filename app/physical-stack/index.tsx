@@ -1,6 +1,6 @@
 import { Link } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import SidebarModal from '../../components/SidebarModal';
 import { useHeaderWithMenu } from '../../hooks/useHeaderWithMenu';
 
@@ -34,17 +34,6 @@ export default function PhysicalIndex() {
             <Text style={styles.buttonText}>Nutrition</Text>
           </TouchableOpacity>
         </Link>
-        
-        <TouchableOpacity style={styles.textInputContainer}>
-          <TextInput
-            style={styles.textInput}
-            placeholder="Enter text..."
-            placeholderTextColor="#999"
-            value={textInputValue}
-            onChangeText={setTextInputValue}
-            multiline={false}
-          />
-        </TouchableOpacity>
       </ScrollView>
       
       <SidebarModal visible={isSidebarVisible} onClose={() => setIsSidebarVisible(false)} />

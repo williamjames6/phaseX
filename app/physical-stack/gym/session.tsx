@@ -4,18 +4,8 @@ import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleShee
 import { v4 as uuidv4 } from 'uuid';
 import { dateFormatter } from '../../../assets/helpers/dateFormatter';
 import { supabase } from '../../../lib/supabase';
+import { Exercise } from '../../../types';
 
-interface Exercise {
-  id: string;
-  exercise_name: string;
-  superset_number: number;
-  exercise_number: number;
-  sets: {
-    reps: number | null;
-    weight: number | null;
-    time: number | null;
-  }[];
-}
 
 interface Session {
   id: string;
@@ -129,6 +119,7 @@ export default function GymSession() {
     return jsonbData;
   };
 
+  //NEED TO CHANGE SO THAT WE USE IMPORT FROM ASSETS/HELPERS/JSONBTOSUPERSETS.TSX
   const convertJSONBToSupersets = (jsonbData: any) => {
     const supersets: { [key: number]: Exercise[] } = {};
     

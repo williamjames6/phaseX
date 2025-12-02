@@ -1,7 +1,7 @@
 import * as LocalAuthentication from 'expo-local-authentication';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Animated, Dimensions, Keyboard, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Animated, Dimensions, Image, Keyboard, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '../lib/supabase';
 
@@ -157,11 +157,13 @@ export default function LoginScreen() {
             },
           ]}
         >
-          {/* <Text style={styles.title}>Welcome back</Text> */}
-          
-          <TouchableOpacity style={styles.faceIdButton} onPress={handleFaceID}>
-            <Text style={styles.faceIdText}>Ballsack ID</Text>
-          </TouchableOpacity>
+          <View> 
+            <Image
+              source={require('../assets/images/onwards.png')}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
+          </View>
 
           <TextInput
             style={styles.input}
@@ -285,5 +287,9 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '500',
+  },
+  logoImage: {
+    width: 100,
+    height: 100,
   },
 }); 

@@ -11,7 +11,7 @@
 
  2. Manually drag and drop "assets" folder and "main.jsbundle" into xcode "phaseX" project
 
- 3. "Build" in Xcode with desired iOS device selected ( use the .xcworkspace, not .xcodeproj)
+ 3. "Build" in Xcode with desired iOS device selected ( use the .xcworkspace, not .xcodeproj [open -a Xcode ios/phaseX.xcworkspace])
 
  Potential issues:
  - Pods and Podfile.lock outdated, need to run "rm -rf Pods Podfile.lock" and then "pod install" to reload (roughly speaking, Cocoapods is to iOS what npm is to JS)
@@ -47,7 +47,8 @@ IMPLEMENTED- Sketch functions (eraser, undo, color) (expected)
 IMPLEMENTED- Time scroll for timestamp
 IMPLEMENTED- Arrowhead direction + change dashed arrow + ball + straighten arrows
 IMPLEMENTED- Timeout for router.replace("/") on appState going to background
-- Linking with [] and {} for timestamps and other dates
+PARTIAL- Linking with [] for timestamps, {} for other dates, and @ for other players
+            - Implemented [] and @, but need to add frontend styling (difficult because textInput only takes one value, but I need text with different styling features in the same textInput element)
 - @ for player mentions
 - Right now, nothing about the chat interaction persists across renders. Very short term --> should be more useful long term
 - Forgot password flow + verify email flow
