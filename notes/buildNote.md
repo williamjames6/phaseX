@@ -39,7 +39,7 @@ FIXED- UTC for dates of journal entries and gym entries (standardize handling of
 - Cannot "undo" on a sketch if you have already left the screen
 FIXED- Add gym session button position fixed, should be part of scroll box
 - Weird flow with "Load More" button on journal stack index page. recentSessions length returning after calling setRecentSession() to a list of lenght 30. Consider timing of state updates (batched and synchronous) and rendering.
-- Backend not functioning properly for trainingLoad page (network error?)
+- Backend not functioning properly for trainingLoad page (network error?)~
 
 
 **Features to add**
@@ -60,4 +60,5 @@ PARTIAL- Linking with [] for timestamps, {} for other dates, and @ for other pla
 - Self vs other data included
 IMPLEMENTED- Holisitic download for all aspects of a givend day of training (Gym + Journal + SS of sketch?) 
             - Problems right now: handling of null/empty returns from backend, formatting of final CSV possibly related to JSON.stringify being called on already stringified content
-- Fixed list of exercises
+PARTIAL- Fixed list of exercises
+    - Also, history button that shows past performance on a given exercise (stolen from TeamBuildr)

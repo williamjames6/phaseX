@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { v4 as uuidv4 } from 'uuid';
 import { dateFormatter } from '../../../assets/helpers/dateFormatter';
@@ -26,6 +26,7 @@ export default function GymSession() {
   const [exercisesList, setExercisesList] = useState<string[]>([]);
   const [showAddExercise, setShowAddExercise] = useState(false);
   const [newExerciseName, setNewExerciseName] = useState('');
+  const sessionExercises = useRef<string[]>(null)
 
 
   useEffect(() => {
