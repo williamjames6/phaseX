@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { v4 as uuidv4 } from 'uuid';
 import { dateFormatter } from '../../../assets/helpers/dateFormatter';
 import { supabase } from '../../../lib/supabase';
@@ -21,6 +21,11 @@ export default function GymSession() {
   const [currentSuperset, setCurrentSuperset] = useState(1);
   const [isNewSession, setIsNewSession] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [showExerciseModal, setShowExerciseModal] = useState(false);
+  const [currentExerciseId, setCurrentExerciseId] = useState<string | null>(null);
+  const [exercisesList, setExercisesList] = useState<string[]>([]);
+  const [showAddExercise, setShowAddExercise] = useState(false);
+  const [newExerciseName, setNewExerciseName] = useState('');
 
 
   useEffect(() => {
@@ -37,6 +42,92 @@ export default function GymSession() {
       setLoading(false);
     }
   }, [id]);
+
+  const loadExercises = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('Exercises')
+        .select('exercise')
+        .order('exercise', { ascending: true });
+
+      if (error) throw error;
+      
+      const exerciseNames = data?.map(item => item.exercise) || [];
+      setExercisesList(exerciseNames);
+    } catch (error) {
+      console.error('Error loading exercises:', error);
+    }
+  };
+
+  const handleOpenExerciseModal = (exerciseId: string) => {
+    setCurrentExerciseId(exerciseId);
+    setShowExerciseModal(true);
+    setShowAddExercise(false);
+    setNewExerciseName('');
+    loadExercises();
+  };
+
+  const handleSelectExercise = async (exerciseName: string) => {
+    if (!currentExerciseId) return;
+
+    // Find the exercise before updating state
+    let foundExercise: Exercise | null = null;
+    let foundSupersetNum: number | null = null;
+    
+    Object.entries(supersets).forEach(([supersetNum, exercises]) => {
+      const exercise = exercises.find(ex => ex.id === currentExerciseId);
+      if (exercise) {
+        foundExercise = exercise;
+        foundSupersetNum = parseInt(supersetNum);
+      }
+    });
+
+    if (!foundExercise || foundSupersetNum === null) return;
+
+    // Update the exercise in state
+    const updatedExercise: Exercise = { ...foundExercise as Exercise, exercise_name: exerciseName };
+    
+    setSupersets(prev => {
+      const updatedSupersets = { ...prev };
+      updatedSupersets[foundSupersetNum!] = updatedSupersets[foundSupersetNum!].map(ex =>
+        ex.id === currentExerciseId ? updatedExercise : ex
+      );
+      return updatedSupersets;
+    });
+
+    // Save the exercise with updated name
+    await handleSaveExercise(updatedExercise);
+
+    setShowExerciseModal(false);
+    setCurrentExerciseId(null);
+  };
+
+  const handleAddNewExercise = async () => {
+    if (!newExerciseName.trim()) {
+      Alert.alert('Error', 'Please enter an exercise name');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('Exercises')
+        .insert([{ exercise: newExerciseName.trim() }]);
+
+      if (error) throw error;
+
+      // Reload exercises list
+      await loadExercises();
+      
+      // Select the newly added exercise
+      await handleSelectExercise(newExerciseName.trim());
+      
+      setShowAddExercise(false);
+      setNewExerciseName('');
+    } catch (error) {
+      console.error('Error adding exercise:', error);
+      Alert.alert('Error', 'Failed to add exercise');
+    }
+  };
 
 
   const createEmptyExercise = (supersetNumber: number, exerciseNumber: number = 1): Exercise => ({
@@ -209,7 +300,7 @@ export default function GymSession() {
 
       const sessionData = {
         user_id: user.id,
-        session_date: new Date().toISOString().split('T')[0],
+        session_date: dateFormatter(new Date()),
         data: {} // Empty JSONB object initially
       };
 
@@ -517,14 +608,14 @@ export default function GymSession() {
                   >
                     {/* Exercise Name Column */}
                     <View style={styles.exerciseColumn}>
-                      <TextInput
+                      <TouchableOpacity
                         style={styles.exerciseNameInput}
-                        placeholder="Exercise Name"
-                        multiline={true}
-                        value={exercise.exercise_name}
-                        onChangeText={(value) => handleUpdateExercise(exercise.id, parseInt(supersetNum), 'exercise_name', value)}
-                        onBlur={() => handleSaveExercise(exercise)}
-                      />
+                        onPress={() => handleOpenExerciseModal(exercise.id)}
+                      >
+                        <Text style={[styles.exerciseNameText, !exercise.exercise_name && styles.exerciseNamePlaceholder]}>
+                          {exercise.exercise_name || 'Exercise Name'}
+                        </Text>
+                      </TouchableOpacity>
                       {/* Add Exercise Button - Only show on last exercise */}
                       {exerciseIndex === supersetExercises.length - 1 && (
                         <TouchableOpacity 
@@ -595,14 +686,6 @@ export default function GymSession() {
                     </View>
                     
                     {/* Exercise Action Buttons */}
-                    {/* <View style={styles.exerciseActionButtons}>
-                      <TouchableOpacity
-                        style={styles.removeExerciseButton}
-                        onPress={() => handleRemoveExercise(exercise.id, parseInt(supersetNum))}
-                      >
-                        <Text style={styles.removeExerciseButtonText}>−</Text>
-                      </TouchableOpacity>
-                    </View> */}
                   </Pressable>
                 ))}
               </View>
@@ -615,6 +698,85 @@ export default function GymSession() {
             <Text style={styles.plusSign}>+</Text>
         </TouchableOpacity>
       </KeyboardAvoidingView>
+
+      {/* Exercise Selection Modal */}
+      <Modal
+        visible={showExerciseModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => {
+          setShowExerciseModal(false);
+          setShowAddExercise(false);
+          setNewExerciseName('');
+          setCurrentExerciseId(null);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Select Exercise</Text>
+            
+            {!showAddExercise ? (
+              <>
+                <ScrollView style={styles.exerciseListContainer}>
+                  {exercisesList.map((exerciseName, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={styles.exerciseListItem}
+                      onPress={() => handleSelectExercise(exerciseName)}
+                    >
+                      <Text style={styles.exerciseListItemText}>{exerciseName}</Text>
+                    </TouchableOpacity>
+                  ))}
+                  <TouchableOpacity
+                    style={styles.addExerciseListItem}
+                    onPress={() => setShowAddExercise(true)}
+                  >
+                    <Text style={styles.addExerciseListItemText}>+ Add Exercise</Text>
+                  </TouchableOpacity>
+                </ScrollView>
+                
+                <TouchableOpacity
+                  style={styles.modalCancelButton}
+                  onPress={() => {
+                    setShowExerciseModal(false);
+                    setCurrentExerciseId(null);
+                  }}
+                >
+                  <Text style={styles.modalCancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <View style={styles.addExerciseContainer}>
+                <Text style={styles.addExerciseTitle}>Add New Exercise</Text>
+                <TextInput
+                  style={styles.addExerciseInput}
+                  placeholder="Exercise Name"
+                  value={newExerciseName}
+                  onChangeText={setNewExerciseName}
+                  autoFocus={true}
+                />
+                <View style={styles.addExerciseButtons}>
+                  <TouchableOpacity
+                    style={styles.modalCancelButton}
+                    onPress={() => {
+                      setShowAddExercise(false);
+                      setNewExerciseName('');
+                    }}
+                  >
+                    <Text style={styles.modalCancelButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.modalAddButton}
+                    onPress={handleAddNewExercise}
+                  >
+                    <Text style={styles.modalAddButtonText}>Add</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -746,6 +908,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#ddd',
     paddingBottom: 4,
+    minHeight: 20,
+    justifyContent: 'center',
+  },
+  exerciseNameText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  exerciseNamePlaceholder: {
+    color: '#999',
   },
     setsScrollContainer: {
       flex: 8,
@@ -833,7 +1004,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 12,
+    marginTop: 40,
+
   },
   addSupersetButton: {
     position: 'absolute',
@@ -867,5 +1039,101 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
     marginTop: 40,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 20,
+    width: '80%',
+    maxHeight: '70%',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  exerciseListContainer: {
+    maxHeight: 400,
+    marginBottom: 16,
+  },
+  exerciseListItem: {
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    marginBottom: 8,
+    backgroundColor: 'white',
+  },
+  exerciseListItemText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  addExerciseListItem: {
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    marginBottom: 8,
+    backgroundColor: '#f5f5f5',
+  },
+  addExerciseListItemText: {
+    fontSize: 16,
+    color: '#FF6B35',
+    fontWeight: 'bold',
+  },
+  modalCancelButton: {
+    backgroundColor: '#ccc',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalCancelButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  addExerciseContainer: {
+    width: '100%',
+  },
+  addExerciseTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  addExerciseInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 16,
+    backgroundColor: 'white',
+  },
+  addExerciseButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  modalAddButton: {
+    flex: 1,
+    backgroundColor: '#FF6B35',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalAddButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });

@@ -1,6 +1,6 @@
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Keyboard, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { dateFormatter } from "../../assets/helpers/dateFormatter";
 import SidebarModal from '../../components/SidebarModal';
@@ -19,13 +19,14 @@ export default function JournalIndex() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
+  const offsetRef = useRef(0);
   const [offset, setOffset] = useState(0);
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedType, setSelectedType] = useState('training');
   const [sessionDescription, setSessionDescription] = useState('');
-  const limit = 10;
+  const limit = 20;
   const today = new Date();
   const twoYearsAgo = new Date();
   twoYearsAgo.setFullYear(today.getFullYear() - 2);
@@ -49,7 +50,8 @@ export default function JournalIndex() {
   // Memoize loadRecentSessions to prevent unnecessary re-creations
   const loadRecentSessions = useCallback(async (isLoadMore = false) => {
     try {
-      const currentOffset = isLoadMore ? offset : 0;
+      const currentOffset = isLoadMore ? offsetRef.current : 0;
+      console.log(currentOffset);
       
       // First, get the Master session (NULL date) separately
       const { data: masterSession, error: masterError } = await supabase
@@ -77,7 +79,7 @@ export default function JournalIndex() {
 
       // Combine master session (if exists) with regular sessions
       const allSessions = [];
-      if (masterSession) {
+      if (masterSession && !isLoadMore) {
         allSessions.push(masterSession);
       }
       if (data) {
@@ -86,14 +88,22 @@ export default function JournalIndex() {
 
       if (isLoadMore) {
         setRecentSessions(prev => {
-          // Remove master session from prev if it exists, then add all new sessions
-          const prevWithoutMaster = prev.filter(session => session.date !== null);
-          return [...prevWithoutMaster, ...(data || [])];
-        });
-        setOffset(currentOffset + limit);
+          console.log("Previous length:", prev.length);
+          console.log("New data length:", (data || []).length);
+          console.log("New total length:", [...prev, ...(data || [])].length);
+          return [...prev, ...(data || [])]
+        })
+        // setRecentSessions(prev => {
+        //   // Remove master session from prev if it exists, then add all new sessions
+        //   const prevWithoutMaster = prev.filter(session => session.date !== null);
+        //   console.log("setting recent session: ", [...prevWithoutMaster, ...(data || [])].length);
+        //   return [...prevWithoutMaster, ...(data || [])];
+        // });
+        console.log("Old recent session length: ", recentSessions.length);
+        offsetRef.current = currentOffset + limit;
       } else {
         setRecentSessions(allSessions);
-        setOffset(limit);
+        offsetRef.current = limit;
       }
 
       // Check if there are more sessions to load
@@ -104,7 +114,7 @@ export default function JournalIndex() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [offset, limit]);
+  }, [limit]);
 
   const loadMoreSessions = async () => {
     if (loadingMore || !hasMore) return;

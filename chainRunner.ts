@@ -297,7 +297,7 @@ export async function chainRunner(
         });
     
         return {
-        assistantText: finalCompletion.choices[0]?.message?.content ?? '',
+          assistantText: finalCompletion.choices[0]?.message?.content ?? '',
         };
     }
   }

@@ -38,6 +38,8 @@ FIXED- timeSwitch() on timestamp of actions before appending to chat query is re
 FIXED- UTC for dates of journal entries and gym entries (standardize handling of dates)
 - Cannot "undo" on a sketch if you have already left the screen
 FIXED- Add gym session button position fixed, should be part of scroll box
+- Weird flow with "Load More" button on journal stack index page. recentSessions length returning after calling setRecentSession() to a list of lenght 30. Consider timing of state updates (batched and synchronous) and rendering.
+- Backend not functioning properly for trainingLoad page (network error?)
 
 
 **Features to add**
@@ -49,12 +51,13 @@ IMPLEMENTED- Arrowhead direction + change dashed arrow + ball + straighten arrow
 IMPLEMENTED- Timeout for router.replace("/") on appState going to background
 PARTIAL- Linking with [] for timestamps, {} for other dates, and @ for other players
             - Implemented [] and @, but need to add frontend styling (difficult because textInput only takes one value, but I need text with different styling features in the same textInput element)
-- @ for player mentions
+            - Issues with playerList column in Sessions table, deleting players, running "playerUpdate" function potentially deleting players? Need to standardize timing of backend ops and then link this feature to *ChainRunner.ts*
 - Right now, nothing about the chat interaction persists across renders. Very short term --> should be more useful long term
 - Forgot password flow + verify email flow
 - CHAINRUNNER.TS
 - Make subjective feeling for sessions look <Pretty>
 - Modify option for session entries
 - Self vs other data included
-PARTIAL- Holisitic download for all aspects of a givend day of training (Gym + Journal + SS of sketch?) 
+IMPLEMENTED- Holisitic download for all aspects of a givend day of training (Gym + Journal + SS of sketch?) 
             - Problems right now: handling of null/empty returns from backend, formatting of final CSV possibly related to JSON.stringify being called on already stringified content
+- Fixed list of exercises

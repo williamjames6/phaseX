@@ -43,29 +43,29 @@ export default function JournalEntryIndex() {
   const [selectedMinutes, setSelectedMinutes] = useState(0);
   const [selectedSeconds, setSelectedSeconds] = useState(0);
   const [sketchesWithPaths, setSketchesWithPaths] = useState<Set<string>>(new Set());
-  const [playerList, setPlayerList] = useState<string[]>([]);
+  const [playerList, setPlayerList] = useState<Set<string>>(new Set());
   const [typingPlayer, setTypingPlayer] = useState<string | null>(null);
   const [validTimestamps, setValidTimestamps] = useState<string[]>([]);
   let actionAdder = 0;
 
 
+  //Pausing playerList functionality at Session level
+  // const playerUpdate = async () => {
+  //   try {
+  //     const { data, error } = await supabase
+  //     .from('Sessions')
+  //     .update({player_mentions: playerList})
+  //     .eq('id', sessionId);
 
-  const playerUpdate = async () => {
-    try {
-      const { data, error } = await supabase
-      .from('Sessions')
-      .update({player_mentions: playerList})
-      .eq('id', sessionId);
+  //     console.log(playerList);
+  //   } catch (error) {
+  //     Alert.alert('Error');
+  //   };
+  //   };
 
-      console.log(playerList);
-    } catch (error) {
-      Alert.alert('Error');
-    };
-    };
-
-  useEffect(() => {
-    playerUpdate();
-  }, [playerList]);
+  // useEffect(() => {
+  //   playerUpdate();
+  // }, [playerList]);
 
   // Load existing actions for this session
   const loadExistingActions = async () => {
@@ -201,33 +201,34 @@ export default function JournalEntryIndex() {
     loadExistingActions();
   }, [sessionId]);
 
-  // Load player mentions on component mount
-  const loadExistingPlayers = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('Sessions')
-        .select('player_mentions')
-        .eq('id', sessionId);
+  // Load player mentions on component mount (ALSO PAUSED LIKE playerUpdate)
+  // const loadExistingPlayers = async () => {
+  //   try {
+  //     const { data, error } = await supabase
+  //       .from('Sessions')
+  //       .select('player_mentions')
+  //       .eq('id', sessionId);
 
-      if (error) {
-        console.error('Error loading player mentions:', error);
-        return;
-      }
+  //     if (error) {
+  //       console.error('Error loading player mentions:', error);
+  //       return;
+  //     }
 
-      if (data) {
-        const names = data[0].player_mentions;
-        setPlayerList(names);
-      }
-    } catch (error) {
-      console.error('Error loading player mentions:', error);
-    }
-  };
+  //     if (data) {
+  //       const names = data[0].player_mentions;
+  //       setPlayerList(names);
+  //     }
+  //   } catch (error) {
+  //     console.error('Error loading player mentions:', error);
+  //   }
+  // };
 
-  useEffect(() => {
-    loadExistingPlayers();
-  }, []);
+  // useEffect(() => {
+  //   loadExistingPlayers();
+  // }, []);
 
   // Check sketch paths when screen comes into focus
+  
   useFocusEffect(
     useCallback(() => {
       const checkSketchPaths = async () => {
@@ -294,7 +295,6 @@ export default function JournalEntryIndex() {
       .filter(timestamp => timestamp && timestamp !== '' && typeof timestamp === 'string')
       .map(timestamp => timestamp as string);
     setValidTimestamps(timestamps);
-    console.log(timestamps);
   };
 
   // Helper function to parse time mentions from description
@@ -314,18 +314,19 @@ export default function JournalEntryIndex() {
     return mentions;
   };
 
-  // Helper function to add new player to playerMentions table
+  // Helper function to add new player to playerMentions table (ALSO PAUSED like playerUpdate)
   const addNewPlayer = async (playerName: string) => {
     if (!playerName || playerName.trim() === '') return;
+    setPlayerList(playerList.add(playerName));
     
     // Check if player already exists in playerList
-    if (playerList.includes(playerName)) {
-      return;
-    }
-    // Update playerList state
-    console.log("update should trigger now with: ", playerName);
-    setPlayerList(prev => [...prev, playerName]);
-    console.log(playerList);
+    // if (playerList.add(playerName)) {
+    //   return;
+    // }
+    // // Update playerList state
+    // console.log("update should trigger now with: ", playerName);
+    // setPlayerList(prev => [...prev, playerName]);
+    // console.log(playerList);
 
   };
 
@@ -705,12 +706,6 @@ export default function JournalEntryIndex() {
                   }
                   handleSubmitAction(action);
                 }}
-                // onSelectionChange={() => {
-                //   if (typingPlayer !== null && typingPlayer !== '') {
-                //     addNewPlayer(typingPlayer);
-                //     setTypingPlayer(null);
-                //   }
-                // }}
               />
             </TouchableWithoutFeedback>
           ))}

@@ -244,6 +244,7 @@ const styles = StyleSheet.create({
   },
   sessionHeader: {
     marginBottom: 8,
+    alignItems: 'center',
   },
   sessionDate: {
     fontSize: 16,
