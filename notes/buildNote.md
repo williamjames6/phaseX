@@ -38,8 +38,10 @@ FIXED- timeSwitch() on timestamp of actions before appending to chat query is re
 FIXED- UTC for dates of journal entries and gym entries (standardize handling of dates)
 - Cannot "undo" on a sketch if you have already left the screen
 FIXED- Add gym session button position fixed, should be part of scroll box
-- Weird flow with "Load More" button on journal stack index page. recentSessions length returning after calling setRecentSession() to a list of lenght 30. Consider timing of state updates (batched and synchronous) and rendering.
+- Weird flow with "Load More" button on journal stack index page. recentSessions length returning after calling setRecentSession() to a list of lenght 30. Consider timing of state updates (batched and synchronous) and rendering. Also, OBO error -- last session before the load more button gets repeated when more sessions loaded.
 - Backend not functioning properly for trainingLoad page (network error?)~
+FIXED- Download function not working across year boundary (i.e. downloads all entries from 2025 but not any from 2026 for date range that spans across the change of year)
+    -Problem was dateFormatter helper function, which did not pad single digit months with zeroes.
 
 
 **Features to add**
@@ -62,3 +64,8 @@ IMPLEMENTED- Holisitic download for all aspects of a givend day of training (Gym
             - Problems right now: handling of null/empty returns from backend, formatting of final CSV possibly related to JSON.stringify being called on already stringified content
 PARTIAL- Fixed list of exercises
     - Also, history button that shows past performance on a given exercise (stolen from TeamBuildr)
+PARTIAL -Sleep section (tracking previous sign in, maybe use push notification or modal to prompt user to input sleep data for previous night)
+    -Right now, if it is a user's first login of the day, then a new sleep entry will be created for the previous night in the backend. Also, the previous_sign_in value is updated to the most recent sign in, but only if it is the first sign in of the day (i.e. previous_sign_in is only accurate to the day not the hour. This is because of if/else structure, and early return if the currentTime date is equal to the previous_sign_in date). No modal implementation or sleep stack UX
+    -Modal now implemented. Need UX for sleep/entry.jsx.
+- Tansition to inputs/outputs structure?
+- Added note to top of gym sessions to track any extra info / distinguish between dates if more than one on a given day.

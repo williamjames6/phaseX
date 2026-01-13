@@ -32,8 +32,9 @@ export default function LoginScreen() {
         Alert.alert("Please enter username and password to activate session");
         return;
       };
-      if (result && data?.session?.refresh_token && data?.session?.access_token) {
-        router.replace('/home');
+      if (result && data?.session?.refresh_token && data?.session?.access_token && data?.user?.id) {
+        console.log("USERID from face ID : ", data.user.id);
+        router.replace(`/home`);
         return;
       };
     } catch (error) {
@@ -78,7 +79,7 @@ export default function LoginScreen() {
         handleFaceID();
         return;
       } else {
-        console.log("session not active");
+        console.log("Session not active. Enter username and password");
         return;
       }
     };
@@ -113,7 +114,7 @@ export default function LoginScreen() {
         if (data.user) {
           const masterSessionId = uuidv4();
           const { error: sessionError } = await supabase
-            .from('Sessions')
+            .from('FieldSessions')
             .insert([
               {
                 id: masterSessionId,
@@ -133,7 +134,8 @@ export default function LoginScreen() {
         };
       };      
       // Navigate to home screen after successful login
-      router.replace('/home');
+      console.log("USERID from traditional login : ", data.user.id);
+      router.replace(`/home`);
     } catch (error) {
       Alert.alert('Error');
     }

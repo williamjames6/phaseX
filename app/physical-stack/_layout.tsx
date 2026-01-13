@@ -43,6 +43,26 @@ export default function PhysicalLayout() {
           headerShown: true,
         }}
       />
+      <Stack.Screen
+        name="sleep/index"
+        options={{
+          title: 'Sleep',
+          headerShown: true,
+        }}
+      />
+      <Stack.Screen
+        name="sleep/entry"
+        options={{
+          title: 'Sleep Entry',
+          headerStyle: {
+            backgroundColor: '#000',
+          },
+          headerTintColor: '#ffffff',
+          headerTitleStyle: {
+            fontWeight: 'bold',
+          },
+        }}
+      />
     </Stack>
   );
 } 

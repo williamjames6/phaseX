@@ -2,5 +2,8 @@
 // methods default to local time) and returns a string in the form "YYYY-MM-DD" (backend format)
 
 export const dateFormatter = (date: Date) => {
-    return `${date.getFullYear()}` + `-` + `${date.getMonth()+1}` + `-` + `${date.getDate()}`;
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
 }

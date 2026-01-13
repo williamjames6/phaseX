@@ -31,6 +31,7 @@ export default function HomeScreen() {
   const [chatHistory, setChatHistory] = useState<string[]>([]);
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [showSleepModal, setShowSleepModal] = useState(false);
   const today = new Date();
   const monthAgo = new Date();
   const twoYearsAgo = new Date();
@@ -41,6 +42,12 @@ export default function HomeScreen() {
   const appState = useAppState();
   const rotationValue = useRef(new Animated.Value(0)).current;
   const timeoutRef = useRef<number | null>(null);
+
+
+  //sleep modal for first login of the day
+  useEffect(() => {
+    sleepCheck();
+  }, []);
 
   //auto log out if screen in background for 10 minutes or more
   useEffect(() => {
@@ -83,6 +90,75 @@ export default function HomeScreen() {
       rotationValue.stopAnimation();
     }
   }, [chatHistory.length, rotationValue]);
+
+  //Check if first login of the day for user. If so, prompt them to fill in sleep data.
+  //If not, return;
+  const sleepCheck = async () => {
+    const currentTime = new Date();
+    try {
+      // Get authenticated user's ID instead of relying on URL params
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.log('No authenticated user, skipping sleep check');
+        return;
+      }
+      
+      const authenticatedUserId = user.id;
+      
+      const {data, error} = await supabase
+        .from("UserMetadata")
+        .upsert(
+          [
+            { user_id: authenticatedUserId }
+          ],                 
+          { onConflict: "user_id" }        
+        )
+        .select("*")
+        .single()
+      if (error) throw error;
+      
+      if (data?.previous_sign_in) {
+        if (new Date(data.previous_sign_in).getDate() == currentTime.getDate()) {
+          return;
+        };
+      };
+      
+      //Add night entry to Sleep table in backend
+      const {data: night, error: error2} = await supabase
+      .from("Sleep")
+      .insert({
+        date: dateFormatter(currentTime),
+        user_id: authenticatedUserId
+      })
+      
+      if (error2) throw error2;
+        
+      //Show modal offering navigation to user to fill in previous night's sleep data
+        
+      //MODAL?? Backend has now been created
+  
+      
+      //Update previous_sign_in value for currently signed in user
+      const {data: finalData, error: finalError} = await supabase
+        .from("UserMetadata")
+        .upsert(
+          [
+            {
+              user_id: authenticatedUserId,
+              previous_sign_in: currentTime
+            }
+          ],
+          { onConflict: "user_id" }
+        );
+      if (finalError) throw finalError;
+      setShowSleepModal(true);
+    } catch (error) {
+      console.error('Error in sleepCheck:', error);
+      // Don't throw - just log the error to prevent breaking the app
+    }
+    
+    return;
+  }
 
   //make request to openAI API
   const handleSearch = async () => {
@@ -142,9 +218,11 @@ export default function HomeScreen() {
     const firstDay = dateFormatter(start) //+ 'T00:00:00.000Z';
     const lastDay = dateFormatter(end) //+ 'T23:59:59.999Z';
     try {
+      console.log(firstDay, lastDay);
+
       //specific action
       const { data: actionData, error: actionError } = await supabase 
-      .from('Actions')
+      .from('FieldActions')
       .select('session_date, time_stamp_seconds, description, player_mentions, time_mentions, self')
       .gte('session_date', firstDay)
       .lte('session_date', lastDay)
@@ -155,7 +233,7 @@ export default function HomeScreen() {
       //gym data
       const { data: gymData, error: gymError } = await supabase 
       .from('GymSessions')
-      .select('session_date, data')
+      .select('session_date, data, note')
       .gte('session_date', firstDay)
       .lte('session_date', lastDay)
       .order("session_date", {ascending: true});
@@ -163,7 +241,7 @@ export default function HomeScreen() {
       if (gymError) {console.log(gymError)};
       //field session data
       const { data: fieldData, error: fieldError } = await supabase
-      .from('Sessions')
+      .from('FieldSessions')
       .select('date, type, description, physical_score, mental_score, overall_score, player_mentions')
       .gte('date', firstDay)
       .lte('date', lastDay)
@@ -397,6 +475,42 @@ export default function HomeScreen() {
         </TouchableWithoutFeedback>
       </Modal>
 
+      {/* Sleep Modal */}
+      <Modal
+        visible={showSleepModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowSleepModal(false)}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Fill in Sleep Data</Text>
+              <Text style={styles.modalText}>Would you like to fill in your sleep data for the previous night?</Text>
+              
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.cancelButton]}
+                  onPress={() => setShowSleepModal(false)}
+                >
+                  <Text style={styles.cancelButtonText}>Later</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.createButton]}
+                  onPress={() => {
+                    const currentTime = new Date();
+                    router.replace(`/physical-stack/sleep/entry?date=${dateFormatter(currentTime)}`);
+                    setShowSleepModal(false);
+                  }}
+                >
+                  <Text style={styles.createButtonText}>Go to sleep</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
       <SidebarModal visible={isSidebarVisible} onClose={() => setIsSidebarVisible(false)} />
     </View>
   );
@@ -537,6 +651,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 20,
     color: '#333',
+  },
+  modalText: {
+    fontSize: 16,
+    marginBottom: 20,
+    color: '#666',
+    textAlign: 'center',
   },
   modalInputContainer: {
     width: '100%',

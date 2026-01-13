@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Dimensions, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { v4 as uuidv4 } from 'uuid';
 import { dateFormatter } from '../../../assets/helpers/dateFormatter';
 import { supabase } from '../../../lib/supabase';
@@ -11,6 +11,7 @@ interface Session {
   id: string;
   session_date: string;
   data: any; // JSONB data for storing superset information
+  note?: string | null;
 }
 
 export default function GymSession() {
@@ -26,7 +27,10 @@ export default function GymSession() {
   const [exercisesList, setExercisesList] = useState<string[]>([]);
   const [showAddExercise, setShowAddExercise] = useState(false);
   const [newExerciseName, setNewExerciseName] = useState('');
+  const [note, setNote] = useState<string>('');
   const sessionExercises = useRef<string[]>(null)
+
+  const { width } = Dimensions.get('window');
 
 
   useEffect(() => {
@@ -37,6 +41,7 @@ export default function GymSession() {
       // New session - create empty superset
       setIsNewSession(true);
       setCurrentSessionId(null);
+      setNote('');
       setSupersets({
         1: [createEmptyExercise(1)]
       });
@@ -47,7 +52,7 @@ export default function GymSession() {
   const loadExercises = async () => {
     try {
       const { data, error } = await supabase
-        .from('Exercises')
+        .from('GymExercises')
         .select('exercise')
         .order('exercise', { ascending: true });
 
@@ -111,7 +116,7 @@ export default function GymSession() {
 
     try {
       const { error } = await supabase
-        .from('Exercises')
+        .from('GymExercises')
         .insert([{ exercise: newExerciseName.trim() }]);
 
       if (error) throw error;
@@ -268,6 +273,9 @@ export default function GymSession() {
 
       if (sessionError) throw sessionError;
       setSession(sessionData);
+      
+      // Load note
+      setNote(sessionData.note || '');
 
       // Load superset data from JSONB column
       if (sessionData.data && Object.keys(sessionData.data).length > 0) {
@@ -508,7 +516,8 @@ export default function GymSession() {
           id: sessionId,
           user_id: user.id,
           session_date: sessionDate || dateFormatter(new Date()),
-          data: jsonbData
+          data: jsonbData,
+          note: note || null
         })
           .select()
           .single();
@@ -524,7 +533,7 @@ export default function GymSession() {
         // Update existing session
         const { error } = await supabase
           .from('GymSessions')
-          .update({ data: jsonbData })
+          .update({ data: jsonbData, note: note || null })
           .eq('id', currentSessionId);
         
         if (error) throw error;
@@ -535,7 +544,28 @@ export default function GymSession() {
     }
   };
 
+  const saveNote = async (noteText: string) => {
+    if (!currentSessionId) return;
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        return;
+      }
 
+      const { error } = await supabase
+        .from('GymSessions')
+        .update({ note: noteText })
+        .eq('id', currentSessionId)
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Error saving note:', error);
+      }
+    } catch (error) {
+      console.error('Error saving note:', error);
+    }
+  };
 
   const handleAddSuperset = () => {
     // Calculate the next superset number based on existing supersets
@@ -579,6 +609,19 @@ export default function GymSession() {
               {session?.session_date ? session.session_date : 'Today'}
             </Text>
           </View>
+
+          {/* Note Input */}
+          <TextInput
+            style={styles.noteInput}
+            placeholder="Add a note..."
+            placeholderTextColor="#999"
+            multiline={true}
+            scrollEnabled={false}
+            value={note}
+            onChangeText={setNote}
+            onBlur={() => saveNote(note)}
+            textAlignVertical="top"
+          />
 
           {/* Supersets */}
           {Object.entries(supersets).map(([supersetNum, supersetExercises]) => (
@@ -829,6 +872,19 @@ const styles = StyleSheet.create({
     color: '#888',
     fontStyle: 'italic',
     marginBottom: 12,
+  },
+  noteInput: {
+    width: '100%',
+    minHeight: 100,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 16,
+    backgroundColor: 'white',
+    fontSize: 16,
+    textAlignVertical: 'top',
   },
   supersetContainer: {
     marginBottom: 20,

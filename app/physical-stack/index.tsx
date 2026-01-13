@@ -34,6 +34,11 @@ export default function PhysicalIndex() {
             <Text style={styles.buttonText}>Nutrition</Text>
           </TouchableOpacity>
         </Link>
+        <Link href="/physical-stack/sleep" asChild>
+          <TouchableOpacity style={styles.sleepButton}>
+            <Text style={styles.buttonText}>Sleep</Text>
+          </TouchableOpacity>
+        </Link>
       </ScrollView>
       
       <SidebarModal visible={isSidebarVisible} onClose={() => setIsSidebarVisible(false)} />
@@ -54,7 +59,7 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   button: {
-    backgroundColor: '#89898a',
+    backgroundColor: '#FF6B35',
     padding: 22.5,
     borderRadius: 8,
     width: '100%',
@@ -70,7 +75,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   nutritionButton: {
-    backgroundColor: '#e3f2fd',
+    backgroundColor: '#FF6B35',
+    padding: 22.5,
+    borderRadius: 8,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sleepButton: {
+    backgroundColor: '#FF6B35',
     padding: 22.5,
     borderRadius: 8,
     width: '100%',

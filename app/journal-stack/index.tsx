@@ -55,7 +55,7 @@ export default function JournalIndex() {
       
       // First, get the Master session (NULL date) separately
       const { data: masterSession, error: masterError } = await supabase
-        .from('Sessions')
+        .from('FieldSessions')
         .select('id, date, type, description')
         .is('date', null)
         .single();
@@ -66,7 +66,7 @@ export default function JournalIndex() {
 
       // Then get regular sessions
       const { data, error } = await supabase
-        .from('Sessions')
+        .from('FieldSessions')
         .select('id, date, type, description')
         .not('date', 'is', null)
         .order('date', { ascending: false })
@@ -139,7 +139,7 @@ export default function JournalIndex() {
 
     try {
       const { data, error } = await supabase
-        .from('Sessions')
+        .from('FieldSessions')
         .insert([
           {
             date: dateString,
@@ -211,7 +211,7 @@ export default function JournalIndex() {
             try {
               // First, get all actions for this session to find their IDs
               const { data: actions, error: fetchActionsError } = await supabase
-                .from('Actions')
+                .from('FieldActions')
                 .select('sketch_id')
                 .eq('session_id', sessionId);
 
@@ -238,7 +238,7 @@ export default function JournalIndex() {
 
                 // Then delete all actions for this session
                 const { error: actionsError } = await supabase
-                  .from('Actions')
+                  .from('FieldActions')
                   .delete()
                   .eq('session_id', sessionId);
 
@@ -251,7 +251,7 @@ export default function JournalIndex() {
 
               // Finally delete the session
               const { error: sessionError } = await supabase
-                .from('Sessions')
+                .from('FieldSessions')
                 .delete()
                 .eq('id', sessionId);
 

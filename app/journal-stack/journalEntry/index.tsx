@@ -53,7 +53,7 @@ export default function JournalEntryIndex() {
   // const playerUpdate = async () => {
   //   try {
   //     const { data, error } = await supabase
-  //     .from('Sessions')
+  //     .from('FieldSessions')
   //     .update({player_mentions: playerList})
   //     .eq('id', sessionId);
 
@@ -75,7 +75,7 @@ export default function JournalEntryIndex() {
       // Handle note type sessions differently
       if (sessionType === "note") {
         const { data, error } = await supabase
-          .from('Actions')
+          .from('FieldActions')
           .select('id, description, sketch_id')
           .eq('session_id', sessionId)
           .is('time_stamp_seconds', null);
@@ -110,13 +110,13 @@ export default function JournalEntryIndex() {
       } else if (sessionType === "training") {
         // Load training session scores and actions
         const { data: sessionData, error: sessionError } = await supabase
-          .from('Sessions')
+          .from('FieldSessions')
           .select('physical_score, mental_score, overall_score')
           .eq('id', sessionId)
           .single();
 
         const { data: actionsData, error: actionsError } = await supabase
-          .from('Actions')
+          .from('FieldActions')
           .select('id, time_stamp_seconds, description, sketch_id')
           .eq('session_id', sessionId)
           .order('time_stamp_seconds', { ascending: true });
@@ -157,7 +157,7 @@ export default function JournalEntryIndex() {
       } else {
         // Handle regular sessions with timestamps
         const { data, error } = await supabase
-          .from('Actions')
+          .from('FieldActions')
           .select('id, time_stamp_seconds, description, sketch_id')
           .eq('session_id', sessionId)
           .order('time_stamp_seconds', { ascending: true });
@@ -205,7 +205,7 @@ export default function JournalEntryIndex() {
   // const loadExistingPlayers = async () => {
   //   try {
   //     const { data, error } = await supabase
-  //       .from('Sessions')
+  //       .from('FieldSessions')
   //       .select('player_mentions')
   //       .eq('id', sessionId);
 
@@ -372,7 +372,7 @@ export default function JournalEntryIndex() {
         };
 
         const { data, error } = await supabase
-          .from('Actions')
+          .from('FieldActions')
           .upsert([actionData], {onConflict: 'id'})
           .select();
 
@@ -404,7 +404,7 @@ export default function JournalEntryIndex() {
         };
 
         const { data, error } = await supabase
-          .from('Actions')
+          .from('FieldActions')
           .upsert([actionData], {onConflict: 'id'})
           .select();
 
@@ -438,7 +438,7 @@ export default function JournalEntryIndex() {
             console.log(action.dbId, typeof(action.dbId));
             try {
               const { data, error } = await supabase
-              .from('Actions')
+              .from('FieldActions')
               .delete()
               .eq('id', action.dbId)
               .select();
@@ -560,7 +560,7 @@ export default function JournalEntryIndex() {
     
     try {
       const { error } = await supabase
-        .from('Sessions')
+        .from('FieldSessions')
         .update({
           physical_score: action.physical_score || null,
           mental_score: action.mental_score || null,
@@ -814,7 +814,7 @@ export default function JournalEntryIndex() {
                     const timeMentionsArray = parseTimeMentions(action.description);
                     try {
                       const { error } = await supabase
-                        .from('Actions')
+                        .from('FieldActions')
                         .update({ time_mentions: timeMentionsArray })
                         .eq('id', action.dbId);
                       if (error) {

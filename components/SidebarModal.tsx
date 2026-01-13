@@ -47,30 +47,30 @@ export default function SidebarModal({ visible, onClose }: SidebarModalProps) {
           <View style={styles.menuContainer}>
             <View style={styles.menuItemContainer}>
               <TouchableOpacity 
-                style={[styles.menuItem, { backgroundColor: '#f0f0f0' }]}
+                style={styles.menuItem}
                 onPress={() => handleNavigation('/home')}
               >
-                <Ionicons name="home" size={24} color="#333" />
+                <Ionicons name="home" size={24} color="yellow" />
                 <Text style={styles.menuText}>Home</Text>
               </TouchableOpacity>
             </View>
 
             <View style={styles.menuItemContainer}>
               <TouchableOpacity 
-                style={[styles.menuItem, { backgroundColor: '#fff3e0' }]}
+                style={styles.menuItem}
                 onPress={() => handleNavigation('/physical-stack')}
               >
-                <Ionicons name="fitness" size={24} color="#333" />
+                <Ionicons name="fitness" size={24} color="yellow" />
                 <Text style={styles.menuText}>Physical</Text>
               </TouchableOpacity>
             </View>
 
             <View style={styles.menuItemContainer}>
               <TouchableOpacity 
-                style={[styles.menuItem, { backgroundColor: '#f3e5f5' }]}
+                style={styles.menuItem}
                 onPress={() => handleNavigation('/journal-stack')}
               >
-                <Ionicons name="book" size={24} color="#333" />
+                <Ionicons name="book" size={24} color="yellow" />
                 <Text style={styles.menuText}>Journal</Text>
               </TouchableOpacity>
             </View>
@@ -116,6 +116,9 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     borderRadius: 16,
     minWidth: 200,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    borderWidth: 1,
+    borderColor: 'yellow',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -128,7 +131,7 @@ const styles = StyleSheet.create({
   menuText: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#333',
+    color: 'yellow',
     marginLeft: 16,
   },
   logoutButton: {

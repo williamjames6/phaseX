@@ -45,7 +45,10 @@ export default {
         {
           "faceIDPermission": "Allow phaseX to use Face ID."
         }
-      ]
+      ],
+      "expo-router",
+      "expo-secure-store",
+      "expo-web-browser"
     ]
   }
 }; 
