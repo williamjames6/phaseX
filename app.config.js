@@ -9,7 +9,7 @@ export default {
     icon: './assets/images/onwards.png',
     userInterfaceStyle: 'light',
     splash: {
-      image: './assets/images/splash-icon.png',
+      image: './assets/images/onwards.png',
       resizeMode: 'contain',
       backgroundColor: '#ffffff'
     },

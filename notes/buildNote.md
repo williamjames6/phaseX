@@ -42,6 +42,7 @@ FIXED- Add gym session button position fixed, should be part of scroll box
 - Backend not functioning properly for trainingLoad page (network error?)~
 FIXED- Download function not working across year boundary (i.e. downloads all entries from 2025 but not any from 2026 for date range that spans across the change of year)
     -Problem was dateFormatter helper function, which did not pad single digit months with zeroes.
+- MAJOR PODS BUG PREVENTING BUILD. PROBLEM WITH UDPATE TO EXPO SDK54
 
 
 **Features to add**
