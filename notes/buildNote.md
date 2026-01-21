@@ -41,8 +41,11 @@ FIXED- Add gym session button position fixed, should be part of scroll box
 - Weird flow with "Load More" button on journal stack index page. recentSessions length returning after calling setRecentSession() to a list of lenght 30. Consider timing of state updates (batched and synchronous) and rendering. Also, OBO error -- last session before the load more button gets repeated when more sessions loaded.
 - Backend not functioning properly for trainingLoad page (network error?)~
 FIXED- Download function not working across year boundary (i.e. downloads all entries from 2025 but not any from 2026 for date range that spans across the change of year)
-    -Problem was dateFormatter helper function, which did not pad single digit months with zeroes.
-- MAJOR PODS BUG PREVENTING BUILD. PROBLEM WITH UDPATE TO EXPO SDK54
+    - **Initial** Problem was dateFormatter helper function, which did not pad single digit months with zeroes.
+    -Thought this was fixed, but still not working. Field sessions from 2026 not downloading properly. Also, multiple sessions on a day seems to cause problems
+        -Problem was mutliple sessions one day. FieldIndex incremented on first session, but then next session with same date never satisfied constraints to enter into block. Fix: changed from "if" block to "while" block
+FIXED- MAJOR PODS BUG PREVENTING BUILD. PROBLEM WITH UDPATE TO EXPO SDK54
+    -If ever encountering "bundle not found" error on iPhone build, change scheme from "development build" to "production build". Dev build automatically looks for Metro port.
 
 
 **Features to add**

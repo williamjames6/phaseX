@@ -14,6 +14,7 @@
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		EA7AC6900271337269067A9E /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95BAC1A0D73E55933CD04C64 /* ExpoModulesProvider.swift */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
+		F53065E12F187C1A00AB8059 /* main 2.jsbundle in Resources */ = {isa = PBXBuildFile; fileRef = F53065E02F187C1A00AB8059 /* main 2.jsbundle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -21,7 +22,7 @@
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = phaseX/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = phaseX/Info.plist; sourceTree = "<group>"; };
 		42795AB0E665A1365B6840B5 /* Pods-phaseX.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-phaseX.release.xcconfig"; path = "Target Support Files/Pods-phaseX/Pods-phaseX.release.xcconfig"; sourceTree = "<group>"; };
-		7CBE8FD10444A33693B3F39B /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = phaseX/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		7CBE8FD10444A33693B3F39B /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = phaseX/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		95BAC1A0D73E55933CD04C64 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-phaseX/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		9C7AB5A39F88A3AF8E9DF1C3 /* Pods-phaseX.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-phaseX.debug.xcconfig"; path = "Target Support Files/Pods-phaseX/Pods-phaseX.debug.xcconfig"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = phaseX/SplashScreen.storyboard; sourceTree = "<group>"; };
@@ -30,6 +31,7 @@
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = phaseX/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* phaseX-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "phaseX-Bridging-Header.h"; path = "phaseX/phaseX-Bridging-Header.h"; sourceTree = "<group>"; };
+		F53065E02F187C1A00AB8059 /* main 2.jsbundle */ = {isa = PBXFileReference; lastKnownFileType = text; path = "main 2.jsbundle"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -54,6 +56,7 @@
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
 				7CBE8FD10444A33693B3F39B /* PrivacyInfo.xcprivacy */,
+				F53065E02F187C1A00AB8059 /* main 2.jsbundle */,
 			);
 			name = phaseX;
 			sourceTree = "<group>";
@@ -128,7 +131,6 @@
 				9C7AB5A39F88A3AF8E9DF1C3 /* Pods-phaseX.debug.xcconfig */,
 				42795AB0E665A1365B6840B5 /* Pods-phaseX.release.xcconfig */,
 			);
-			name = Pods;
 			path = Pods;
 			sourceTree = "<group>";
 		};
@@ -166,8 +168,8 @@
 				LastUpgradeCheck = 1130;
 				TargetAttributes = {
 					13B07F861A680F5B00A75B9A = {
+						DevelopmentTeam = 6SD7QG74U4;
 						LastSwiftMigration = 1250;
-						DevelopmentTeam = "6SD7QG74U4";
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -196,6 +198,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
+				F53065E12F187C1A00AB8059 /* main 2.jsbundle in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
 				46CB68F575A69BD9BCDD20AC /* PrivacyInfo.xcprivacy in Resources */,
@@ -344,7 +347,10 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = phaseX/phaseX.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6SD7QG74U4;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
@@ -370,9 +376,6 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VERSIONING_SYSTEM = "apple-generic";
-				DEVELOPMENT_TEAM = "6SD7QG74U4";
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
 			};
 			name = Debug;
 		};
@@ -383,7 +386,10 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = phaseX/phaseX.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6SD7QG74U4;
 				INFOPLIST_FILE = phaseX/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -403,9 +409,6 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VERSIONING_SYSTEM = "apple-generic";
-				DEVELOPMENT_TEAM = "6SD7QG74U4";
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
 			};
 			name = Release;
 		};

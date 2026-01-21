@@ -133,11 +133,6 @@ export default function HomeScreen() {
       
       if (error2) throw error2;
         
-      //Show modal offering navigation to user to fill in previous night's sleep data
-        
-      //MODAL?? Backend has now been created
-  
-      
       //Update previous_sign_in value for currently signed in user
       const {data: finalData, error: finalError} = await supabase
         .from("UserMetadata")
@@ -196,7 +191,15 @@ export default function HomeScreen() {
 
   // Memoize the headerRight function to prevent unnecessary re-renders
   const headerRight = useMemo(() => () => (
-    <TouchableOpacity onPress={() => setShowDownloadModal(true)}>
+    <TouchableOpacity 
+      onPress={() => setShowDownloadModal(true)}
+      style={{ 
+        padding: 8, 
+        marginRight: 8,
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}
+    >
       <Image
         source={require('../../assets/images/download.png')}
         style={{height: 25, width: 25, tintColor: 'white'}}
@@ -255,6 +258,7 @@ export default function HomeScreen() {
       const safeGymData = gymData || [];
       const safeFieldData = fieldData || [];
       const safeActionData = actionData || [];
+
       
       let processedData: any[] = [];
       let iterator = new Date(start);
@@ -266,18 +270,18 @@ export default function HomeScreen() {
       while (iterator <= endDate) {
         let dateObject = {
           date: dateFormatter(iterator),
-          gym_data: {},
-          session_data: {}
+          gym_data: [] as any[],
+          session_data: [] as any[],
         };
         
         // Check bounds before accessing gymData
-        if (gymIndex < safeGymData.length && safeGymData[gymIndex]?.session_date == dateFormatter(iterator)) {
-          dateObject.gym_data = safeGymData[gymIndex].data;
+        while (gymIndex < safeGymData.length && safeGymData[gymIndex]?.session_date == dateFormatter(iterator)) {
+          dateObject.gym_data.push(safeGymData[gymIndex].data);
           gymIndex++;
         }
 
         // Check bounds before accessing fieldData
-        if (fieldIndex < safeFieldData.length && safeFieldData[fieldIndex]?.date == dateFormatter(iterator)) {
+        while (fieldIndex < safeFieldData.length && safeFieldData[fieldIndex]?.date == dateFormatter(iterator)) {
           let { date, ...sessionWithoutDate} = safeFieldData[fieldIndex];
           let relevantActions = [];
           
@@ -291,7 +295,7 @@ export default function HomeScreen() {
           };
           
           let final = {...sessionWithoutDate, actions: relevantActions};
-          dateObject.session_data = final;
+          dateObject.session_data.push(final);
           fieldIndex++     
         }
         
@@ -499,7 +503,7 @@ export default function HomeScreen() {
                   style={[styles.modalButton, styles.createButton]}
                   onPress={() => {
                     const currentTime = new Date();
-                    router.replace(`/physical-stack/sleep/entry?date=${dateFormatter(currentTime)}`);
+                    router.push(`/physical-stack/sleep/entry?date=${dateFormatter(currentTime)}`);
                     setShowSleepModal(false);
                   }}
                 >

@@ -16,7 +16,15 @@ export function useHeaderWithMenu({ title, onMenuPress, headerRight }: UseHeader
     navigation.setOptions({
       title,
       headerLeft: () => (
-        <TouchableOpacity onPress={onMenuPress} style={{ padding: 8, marginLeft: 8 }}>
+        <TouchableOpacity 
+          onPress={onMenuPress} 
+          style={{ 
+            padding: 8, 
+            marginLeft: 8,
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
           <Ionicons name="menu" size={24} color="#ffffff" />
         </TouchableOpacity>
       ),
