@@ -51,7 +51,7 @@ export default function JournalIndex() {
   const loadRecentSessions = useCallback(async (isLoadMore = false) => {
     try {
       const currentOffset = isLoadMore ? offsetRef.current : 0;
-      console.log(currentOffset);
+      console.log("Current offset: ", currentOffset);
       
       // First, get the Master session (NULL date) separately
       const { data: masterSession, error: masterError } = await supabase
@@ -453,22 +453,22 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   sessionButton: {
-    backgroundColor: '#fff',
+    backgroundColor: '#1a1a1a',
     padding: 15,
     borderRadius: 8,
     width: '100%',
     alignItems: 'center',
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#333',
   },
   masterSessionButton: {
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#1a1a1a',
     borderColor: '#F41A99',
     borderWidth: 2,
   },
   sessionButtonText: {
-    color: '#333',
+    color: '#e5e5e5',
     fontSize: 16,
     fontWeight: '500',
   },
@@ -642,6 +642,7 @@ const styles = StyleSheet.create({
   },
   masterButtonText: {
     fontWeight: '800',
+    color: '#e5e5e5'
   },
   sessionSubtitle: {
     fontStyle: "italic",

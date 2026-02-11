@@ -218,8 +218,8 @@ export default function HomeScreen() {
       end = temp;
     }
     console.log("Start:  ", start, "End:  ", end);
-    const firstDay = dateFormatter(start) //+ 'T00:00:00.000Z';
-    const lastDay = dateFormatter(end) //+ 'T23:59:59.999Z';
+    const firstDay = dateFormatter(start);
+    const lastDay = dateFormatter(end);
     try {
       console.log(firstDay, lastDay);
 
@@ -590,7 +590,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ccc',
     borderRadius: 24,
-    backgroundColor: 'white',
+    backgroundColor: '#1a1a1a',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
@@ -600,6 +600,7 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingHorizontal: 8,
     fontSize: 16,
+    color: 'white',
   },
   sendButton: {
     width: 32,
@@ -607,8 +608,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#111827',
-    shadowColor: '#000',
+    backgroundColor: '#1a1a1a',
+    borderColor: 'yellow',
+    borderWidth: 1,
+    shadowColor: 'yellow',
     shadowOpacity: 0.2,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
@@ -616,11 +619,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     marginRight: 5,
     marginTop: 5,
-    marginBottom: 5
-    //marginLeft: 'auto',
-    //alignSelf: 'flex-end',
-    // paddingRight: 5,
-    // paddingBottom: 5,
+    marginBottom: 5,
   },
   sidebarButton: {
     flexDirection: 'row',

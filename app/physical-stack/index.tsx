@@ -31,7 +31,7 @@ export default function PhysicalIndex() {
         </Link>
         <Link href="/physical-stack/nutrition" asChild>
           <TouchableOpacity style={styles.nutritionButton}>
-            <Text style={styles.buttonText}>Nutrition</Text>
+            <Text style={styles.buttonText}>Food</Text>
           </TouchableOpacity>
         </Link>
         <Link href="/physical-stack/sleep" asChild>

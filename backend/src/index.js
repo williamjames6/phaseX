@@ -25,8 +25,6 @@ app.use(express.json());
 
 // Create a new IMAP client instance
 function createImapClient() {
-  console.log(config.gmailUser);
-  console.log(config.gmailPassword);
   return new ImapFlow({
     host: 'imap.gmail.com',
     port: 993,

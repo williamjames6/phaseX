@@ -1,6 +1,6 @@
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Alert, Keyboard, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { supabase } from '../../../lib/supabase';
 
@@ -34,12 +34,22 @@ export default function SleepEntry() {
   const [showStartTimePicker, setShowStartTimePicker] = useState(false);
   const [showEndTimePicker, setShowEndTimePicker] = useState(false);
 
-  // Initialize dates for time pickers
-  const [sleepStartTime, setSleepStartTime] = useState(new Date());
-  const [sleepEndTime, setSleepEndTime] = useState(new Date());
+  // Initialize dates for time pickers (default 11:00 PM and 7:00 AM)
+  const defaultSleepStart = useMemo(() => {
+    const d = new Date();
+    d.setHours(23, 0, 0, 0);
+    return d;
+  }, []);
+  const defaultSleepEnd = useMemo(() => {
+    const d = new Date();
+    d.setHours(7, 0, 0, 0);
+    return d;
+  }, []);
+  const [sleepStartTime, setSleepStartTime] = useState(defaultSleepStart);
+  const [sleepEndTime, setSleepEndTime] = useState(defaultSleepEnd);
 
-  const timeToSleepOptions = ['short', 'moderate', 'long'];
-  const arousalOptions = ['alert', 'moderate', 'drowsy'];
+  const timeToSleepOptions = ['Short', 'Moderate', 'Long'];
+  const arousalOptions = ['Alert', 'Moderate', 'Drowsy'];
   const disruptionsOptions = ['0', '1-2', '>2'];
   const numberOptions = Array.from({ length: 10 }, (_, i) => i); // 0-9
 
@@ -232,6 +242,7 @@ export default function SleepEntry() {
                 display="spinner"
                 onChange={handleSleepStartChange}
                 style={styles.timePicker}
+                themeVariant="dark"
               />
             </View>
           ) : (
@@ -269,6 +280,7 @@ export default function SleepEntry() {
                 display="spinner"
                 onChange={handleSleepEndChange}
                 style={styles.timePicker}
+                themeVariant="dark"
               />
             </View>
           ) : (
@@ -542,55 +554,63 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   timePickerContainer: {
-    backgroundColor: 'white',
+    backgroundColor: '#1a1a1a',
     borderRadius: 8,
     padding: 10,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#333',
   },
   timePicker: {
     width: '100%',
   },
   timeInput: {
-    backgroundColor: 'white',
+    backgroundColor: '#1a1a1a',
     borderRadius: 8,
     padding: 15,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#333',
   },
   timeInputText: {
-    color: '#333',
+    color: '#e5e5e5',
     fontSize: 16,
   },
   textInput: {
-    backgroundColor: 'white',
+    backgroundColor: '#1a1a1a',
     borderRadius: 8,
     padding: 15,
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#333',
   },
   textInputText: {
-    color: '#333',
+    color: '#e5e5e5',
     fontSize: 16,
   },
   modalOverlay: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.7)',
   },
   modalContent: {
-    backgroundColor: 'white',
+    backgroundColor: '#1a1a1a',
     borderRadius: 10,
     padding: 20,
     width: '80%',
     maxHeight: '70%',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#333',
   },
   modalTitle: {
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 20,
-    color: '#333',
+    color: '#e5e5e5',
   },
   modalScrollView: {
     width: '100%',
@@ -603,7 +623,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#333',
+    backgroundColor: '#1a1a1a',
   },
   modalOptionSelected: {
     backgroundColor: '#FF6B35',
@@ -611,7 +632,7 @@ const styles = StyleSheet.create({
   },
   modalOptionText: {
     fontSize: 18,
-    color: '#333',
+    color: '#e5e5e5',
     fontWeight: '500',
   },
   modalOptionTextSelected: {
@@ -627,10 +648,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cancelButton: {
-    backgroundColor: '#ccc',
+    backgroundColor: '#333',
   },
   cancelButtonText: {
-    color: 'white',
+    color: '#e5e5e5',
     fontSize: 16,
     fontWeight: 'bold',
   },

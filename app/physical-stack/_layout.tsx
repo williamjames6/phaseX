@@ -1,8 +1,22 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Stack } from 'expo-router';
+import { TouchableOpacity } from 'react-native';
 
 export default function PhysicalLayout() {
   return (
-    <Stack screenOptions={{ headerBackButtonDisplayMode: "minimal" }}>
+    <Stack
+      screenOptions={({ navigation }) => ({
+        headerBackButtonDisplayMode: 'minimal',
+        headerLeft: ({ tintColor }) => (
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={{ padding: 8, marginLeft: 8, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Ionicons name="chevron-back" size={24} color={tintColor ?? '#ffffff'} />
+          </TouchableOpacity>
+        ),
+      })}
+    >
       <Stack.Screen
         name="index"
         options={{
@@ -13,7 +27,13 @@ export default function PhysicalLayout() {
         name="gym/index"
         options={{
           title: 'Gym Sessions',
-          headerShown: true,
+          headerStyle: {
+            backgroundColor: '#000',
+          },
+          headerTintColor: '#ffffff',
+          headerTitleStyle: {
+            fontWeight: 'bold',
+          },
         }}
       />
       <Stack.Screen

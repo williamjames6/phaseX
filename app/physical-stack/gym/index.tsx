@@ -52,10 +52,45 @@ export default function GymIndex() {
     setShowModal(true);
   };
 
-  const handleCreateSession = () => {
-    const dateString = dateFormatter(selectedDate)
-    setShowModal(false);
-    router.push(`/physical-stack/gym/session?sessionDate=${dateString}`);
+  const handleCreateSession = async () => {
+    const dateString = dateFormatter(selectedDate);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        Alert.alert('Error', 'You must be logged in to create a gym session');
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('GymSessions')
+        .insert([
+          {
+            user_id: user.id,
+            session_date: dateString,
+            data: {},
+            note: null,
+          },
+        ])
+        .select();
+
+      if (error) {
+        console.error('Error creating session:', error);
+        Alert.alert('Error', 'Failed to create new session');
+        return;
+      }
+
+      if (data && data[0]) {
+        router.push(`/physical-stack/gym/session?id=${data[0].id}&sessionDate=${dateString}`);
+      }
+
+      setShowModal(false);
+      setSelectedDate(new Date());
+      loadSessions();
+    } catch (error) {
+      console.error('Error creating session:', error);
+      Alert.alert('Error', 'Failed to create new session');
+    }
   };
 
   const handleSessionPress = (session: GymSession) => {
@@ -193,7 +228,7 @@ export default function GymIndex() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#000',
     padding: 16,
   },
   plusSign: {
@@ -229,18 +264,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sessionCard: {
-    backgroundColor: 'white',
+    backgroundColor: '#1a1a1a',
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#333',
   },
   sessionHeader: {
     marginBottom: 8,
@@ -249,11 +278,11 @@ const styles = StyleSheet.create({
   sessionDate: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: '#e5e5e5',
   },
   sessionName: {
     fontSize: 14,
-    color: '#666',
+    color: '#999',
     marginTop: 2,
   },
   sessionNotes: {
@@ -264,13 +293,13 @@ const styles = StyleSheet.create({
   loadingText: {
     textAlign: 'center',
     fontSize: 16,
-    color: '#666',
+    color: '#999',
     marginTop: 40,
   },
   noSessionsText: {
     textAlign: 'center',
     fontSize: 16,
-    color: '#666',
+    color: '#999',
     marginTop: 40,
     fontStyle: 'italic',
   },
@@ -278,20 +307,22 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.7)',
   },
   modalContent: {
-    backgroundColor: 'white',
+    backgroundColor: '#1a1a1a',
     borderRadius: 10,
     padding: 20,
     width: '80%',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#333',
   },
   modalTitle: {
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 20,
-    color: '#333',
+    color: '#e5e5e5',
   },
   inputContainer: {
     width: '100%',
@@ -301,7 +332,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 5,
-    color: '#555',
+    color: '#b0b0b0',
   },
   datePicker: {
     margin: 6,
@@ -319,10 +350,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   cancelButton: {
-    backgroundColor: '#ccc',
+    backgroundColor: '#333',
   },
   cancelButtonText: {
-    color: 'white',
+    color: '#e5e5e5',
     fontSize: 16,
     fontWeight: 'bold',
   },

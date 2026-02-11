@@ -41,7 +41,6 @@ export default function SleepIndex() {
         console.error('Error fetching sleep dates:', error);
         return;
       }
-      console.log(data);
       if (!data || data.length === 0) {
         setHasMore(false);
         if (!isLoadMore) {
@@ -143,35 +142,35 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   dateButton: {
-    backgroundColor: '#fff',
+    backgroundColor: '#1a1a1a',
     padding: 15,
     borderRadius: 8,
     width: '100%',
     alignItems: 'center',
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#333',
   },
   dateButtonText: {
-    color: '#333',
+    color: '#e5e5e5',
     fontSize: 16,
     fontWeight: '500',
   },
   loadingText: {
     textAlign: 'center',
     fontSize: 16,
-    color: '#666',
+    color: '#999',
     marginTop: 40,
   },
   noDatesText: {
     textAlign: 'center',
     fontSize: 16,
-    color: '#666',
+    color: '#999',
     marginTop: 40,
     fontStyle: 'italic',
   },
   loadMoreButton: {
-    backgroundColor: '#F41A99',
+    backgroundColor: '#FF6B35',
     padding: 15,
     borderRadius: 8,
     width: '100%',

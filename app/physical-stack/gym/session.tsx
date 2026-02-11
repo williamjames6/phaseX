@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
-import { Alert, Dimensions, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { v4 as uuidv4 } from 'uuid';
 import { dateFormatter } from '../../../assets/helpers/dateFormatter';
 import { supabase } from '../../../lib/supabase';
@@ -28,9 +28,6 @@ export default function GymSession() {
   const [showAddExercise, setShowAddExercise] = useState(false);
   const [newExerciseName, setNewExerciseName] = useState('');
   const [note, setNote] = useState<string>('');
-  const sessionExercises = useRef<string[]>(null)
-
-  const { width } = Dimensions.get('window');
 
 
   useEffect(() => {
@@ -90,19 +87,17 @@ export default function GymSession() {
 
     if (!foundExercise || foundSupersetNum === null) return;
 
-    // Update the exercise in state
+    // Update the exercise (compute next supersets so we can save before state has committed)
     const updatedExercise: Exercise = { ...foundExercise as Exercise, exercise_name: exerciseName };
-    
-    setSupersets(prev => {
-      const updatedSupersets = { ...prev };
-      updatedSupersets[foundSupersetNum!] = updatedSupersets[foundSupersetNum!].map(ex =>
-        ex.id === currentExerciseId ? updatedExercise : ex
-      );
-      return updatedSupersets;
-    });
+    const nextSupersets = { ...supersets };
+    nextSupersets[foundSupersetNum] = nextSupersets[foundSupersetNum].map(ex =>
+      ex.id === currentExerciseId ? updatedExercise : ex
+    );
 
-    // Save the exercise with updated name
-    await handleSaveExercise(updatedExercise);
+    setSupersets(nextSupersets);
+
+    // Save using the computed next supersets so the backend gets the updated name
+    await saveSession(nextSupersets);
 
     setShowExerciseModal(false);
     setCurrentExerciseId(null);
@@ -149,59 +144,21 @@ export default function GymSession() {
   });
 
   const handleSaveExercise = async (exercise: Exercise) => {
-    // Save the entire session data immediately when any exercise is modified
-    await handleSaveSession();
+    await saveSession();
   };
 
-  const saveSessionWithSupersets = async (nextSupersets: { [key: number]: Exercise[] }) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const jsonbData = convertSupersetsToJSONB(nextSupersets);
-
-      if (isNewSession) {
-        const sessionId = uuidv4();
-        const { error } = await supabase
-          .from('GymSessions')
-          .insert({
-            id: sessionId,
-            user_id: user.id,
-            session_date: sessionDate || dateFormatter(new Date()),
-            data: jsonbData
-          });
-        if (error) throw error;
-        router.setParams({ id: sessionId });
-        setCurrentSessionId(sessionId);
-        setIsNewSession(false);
-      } else {
-        const { error } = await supabase
-          .from('GymSessions')
-          .update({ data: jsonbData })
-          .eq('id', currentSessionId);
-        if (error) throw error;
-      }
-    } catch (error) {
-      console.error('Error saving session after deletion:', error);
-      Alert.alert('Error', 'Failed to delete exercise');
-    }
-  };
-
-  // Helper functions to convert between flat structure and JSONB structure
-  const convertSupersetsToJSONB = (supersets: { [key: number]: Exercise[] }) => {
+  // Memoized pure converters (stable reference across renders)
+  const convertSupersetsToJSONB = useCallback((supersets: { [key: number]: Exercise[] }) => {
     const jsonbData: any = {};
-    
     Object.entries(supersets).forEach(([supersetNum, exercises]) => {
       const supersetKey = `superset${supersetNum}`;
       jsonbData[supersetKey] = {};
-      
       exercises.forEach((exercise, exerciseIndex) => {
         const exerciseKey = `exercise${exerciseIndex + 1}`;
         jsonbData[supersetKey][exerciseKey] = {
           exercise_name: exercise.exercise_name,
           sets: {}
         };
-        
         exercise.sets.forEach((set, setIndex) => {
           const setKey = `set${setIndex + 1}`;
           jsonbData[supersetKey][exerciseKey].sets[setKey] = {
@@ -212,18 +169,14 @@ export default function GymSession() {
         });
       });
     });
-    
     return jsonbData;
-  };
+  }, []);
 
-  //NEED TO CHANGE SO THAT WE USE IMPORT FROM ASSETS/HELPERS/JSONBTOSUPERSETS.TSX
-  const convertJSONBToSupersets = (jsonbData: any) => {
+  const convertJSONBToSupersets = useCallback((jsonbData: any) => {
     const supersets: { [key: number]: Exercise[] } = {};
-    
     Object.entries(jsonbData).forEach(([supersetKey, supersetData]: [string, any]) => {
       const supersetNum = parseInt(supersetKey.replace('superset', ''));
       supersets[supersetNum] = [];
-      
       Object.entries(supersetData).forEach(([exerciseKey, exerciseData]: [string, any]) => {
         const exerciseNum = parseInt(exerciseKey.replace('exercise', ''));
         const exercise: Exercise = {
@@ -233,7 +186,6 @@ export default function GymSession() {
           exercise_number: exerciseNum,
           sets: []
         };
-        
         Object.entries(exerciseData.sets || {}).forEach(([setKey, setData]: [string, any]) => {
           const setNum = parseInt(setKey.replace('set', ''));
           exercise.sets[setNum - 1] = {
@@ -242,18 +194,51 @@ export default function GymSession() {
             time: setData.time
           };
         });
-        
-        // Fill in missing sets with null values
         while (exercise.sets.length < 3) {
           exercise.sets.push({ reps: null, weight: null, time: null });
         }
-        
         supersets[supersetNum].push(exercise);
       });
     });
-    
     return supersets;
-  };
+  }, []);
+
+  /** Single save: use state supersets, or pass explicit supersets when state isn't updated yet. */
+  const saveSession = useCallback(async (supersetsOverride?: { [key: number]: Exercise[] }) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const toSave = supersetsOverride ?? supersets;
+      const jsonbData = convertSupersetsToJSONB(toSave);
+
+      if (isNewSession) {
+        const sessionId = uuidv4();
+        const { error } = await supabase
+          .from('GymSessions')
+          .insert({
+            id: sessionId,
+            user_id: user.id,
+            session_date: sessionDate || dateFormatter(new Date()),
+            data: jsonbData,
+            note: note || null
+          });
+        if (error) throw error;
+        router.setParams({ id: sessionId });
+        setCurrentSessionId(sessionId);
+        setIsNewSession(false);
+      } else {
+        const { error } = await supabase
+          .from('GymSessions')
+          .update({ data: jsonbData, note: note || null })
+          .eq('id', currentSessionId);
+        if (error) throw error;
+      }
+    } catch (error) {
+      console.error('Error saving session:', error);
+      Alert.alert('Error', 'Failed to save session data');
+    }
+  }, [supersets, isNewSession, currentSessionId, sessionDate, note, convertSupersetsToJSONB]);
 
   const loadSession = async () => {
     try {
@@ -299,48 +284,7 @@ export default function GymSession() {
     }
   };
 
-  const createSession = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        Alert.alert('Error', 'You must be logged in to create gym sessions');
-        return null;
-      }
-
-      const sessionData = {
-        user_id: user.id,
-        session_date: dateFormatter(new Date()),
-        data: {} // Empty JSONB object initially
-      };
-
-      const { data, error } = await supabase
-        .from('GymSessions')
-        .insert([sessionData])
-        .select()
-        .single();
-      
-      if (error) throw error;
-      
-      setSession(data);
-      return data.id;
-    } catch (error) {
-      console.error('Error creating session:', error);
-      Alert.alert('Error', 'Failed to create gym session');
-      return null;
-    }
-  };
-
   const handleAddExercise = async (targetSupersetNumber?: number) => {
-    let sessionId = id as string;
-
-    // If no session exists, create one
-    if (!sessionId) {
-      sessionId = await createSession();
-      if (!sessionId) return;
-      
-      // Update the URL parameters to include the new session ID
-      router.setParams({ id: sessionId });
-    }
 
     // Use the target superset number if provided, otherwise use currentSuperset
     const supersetToAddTo = targetSupersetNumber || currentSuperset;
@@ -356,21 +300,6 @@ export default function GymSession() {
     setTimeout(() => {
       handleSaveExercise(newExercise);
     }, 100);
-  };
-
-  const handleUpdateExercise = (exerciseId: string, supersetNumber: number, field: keyof Exercise, value: any) => {
-    setSupersets(prev => {
-      const updatedSupersets = {
-        ...prev,
-        [supersetNumber]: prev[supersetNumber].map(ex => 
-          ex.id === exerciseId ? { ...ex, [field]: value } : ex
-        )
-      };
-      
-      // Save will be triggered by onBlur event
-      
-      return updatedSupersets;
-    });
   };
 
   const handleUpdateSet = (exerciseId: string, supersetNumber: number, setIndex: number, field: 'reps' | 'weight' | 'time', value: any) => {
@@ -406,7 +335,7 @@ export default function GymSession() {
     
     // Auto-save after adding set with delay to ensure state is updated
     setTimeout(() => {
-      handleSaveSession();
+      saveSession();
     }, 100);
   };
 
@@ -423,20 +352,17 @@ export default function GymSession() {
     
     // Auto-save after removing set with delay to ensure state is updated
     setTimeout(() => {
-      handleSaveSession();
+      saveSession();
     }, 100);
   };
 
-  const handleRemoveExercise = (exerciseId: string, supersetNumber: number) => {
-    setSupersets(prev => {
-      const next = {
-        ...prev,
-        [supersetNumber]: prev[supersetNumber].filter(ex => ex.id !== exerciseId)
-      };
-      // Persist updated supersets immediately
-      saveSessionWithSupersets(next);
-      return next;
-    });
+  const handleRemoveExercise = async (exerciseId: string, supersetNumber: number) => {
+    const next = {
+      ...supersets,
+      [supersetNumber]: supersets[supersetNumber].filter(ex => ex.id !== exerciseId)
+    };
+    setSupersets(next);
+    await saveSession(next);
   };
 
   const handleLongPressExercise = (exerciseId: string, supersetNumber: number) => {
@@ -463,85 +389,26 @@ export default function GymSession() {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            // Remove superset from state and renumber remaining supersets
-            setSupersets(prev => {
-              const newSupersets = { ...prev };
-              delete newSupersets[supersetNumber];
-              
-              // Renumber remaining supersets
-              const sortedKeys = Object.keys(newSupersets).map(Number).sort((a, b) => a - b);
-              const renumberedSupersets: { [key: number]: Exercise[] } = {};
-              
-              sortedKeys.forEach((oldKey, index) => {
-                const newKey = index + 1;
-                renumberedSupersets[newKey] = newSupersets[oldKey].map(exercise => ({
-                  ...exercise,
-                  superset_number: newKey
-                }));
-              });
-              
-              return renumberedSupersets;
+            // Remove superset and renumber remaining
+            const newSupersets = { ...supersets };
+            delete newSupersets[supersetNumber];
+            const sortedKeys = Object.keys(newSupersets).map(Number).sort((a, b) => a - b);
+            const renumberedSupersets: { [key: number]: Exercise[] } = {};
+            sortedKeys.forEach((oldKey, index) => {
+              const newKey = index + 1;
+              renumberedSupersets[newKey] = newSupersets[oldKey].map(exercise => ({
+                ...exercise,
+                superset_number: newKey
+              }));
             });
-            
-            // Update currentSuperset to be the next available number
-            setSupersets(currentSupersets => {
-              const maxSuperset = Math.max(0, ...Object.keys(currentSupersets).map(Number));
-              setCurrentSuperset(maxSuperset + 1);
-              return currentSupersets;
-            });
-            
-            // Save the updated session data
-            handleSaveSession();
-            
-            console.log(`Superset ${supersetNumber} deleted successfully`);
+            const maxSuperset = Math.max(0, ...Object.keys(renumberedSupersets).map(Number));
+            setSupersets(renumberedSupersets);
+            setCurrentSuperset(maxSuperset + 1);
+            await saveSession(renumberedSupersets);
           },
         },
       ]
     );
-  };
-
-  const handleSaveSession = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const jsonbData = convertSupersetsToJSONB(supersets);
-      
-      if (isNewSession) {
-        // Create new session
-        const sessionId = uuidv4();
-        const { data, error } = await supabase
-        .from('GymSessions')
-        .insert({
-          id: sessionId,
-          user_id: user.id,
-          session_date: sessionDate || dateFormatter(new Date()),
-          data: jsonbData,
-          note: note || null
-        })
-          .select()
-          .single();
-        
-        if (error) throw error;
-        
-        // Update the URL parameters to include the new session ID
-        router.setParams({ id: sessionId });
-        setCurrentSessionId(sessionId);
-        setIsNewSession(false);
-        console.log('New session created successfully');
-      } else {
-        // Update existing session
-        const { error } = await supabase
-          .from('GymSessions')
-          .update({ data: jsonbData, note: note || null })
-          .eq('id', currentSessionId);
-        
-        if (error) throw error;
-      }
-    } catch (error) {
-      console.error('Error saving session:', error);
-      Alert.alert('Error', 'Failed to save session data');
-    }
   };
 
   const saveNote = async (noteText: string) => {
@@ -685,6 +552,7 @@ export default function GymSession() {
                             <TextInput
                               style={styles.setInput}
                               placeholder="Reps"
+                              placeholderTextColor="#666"
                               value={set.reps?.toString() || ''}
                               onChangeText={(value) => handleUpdateSet(exercise.id, parseInt(supersetNum), setIndex, 'reps', value ? parseInt(value) : null)}
                               onBlur={() => handleSaveExercise(exercise)}
@@ -693,6 +561,7 @@ export default function GymSession() {
                             <TextInput
                               style={styles.setInput}
                               placeholder="Weight"
+                              placeholderTextColor="#666"
                               value={set.weight?.toString() || ''}
                               onChangeText={(value) => handleUpdateSet(exercise.id, parseInt(supersetNum), setIndex, 'weight', value ? parseFloat(value) : null)}
                               onBlur={() => handleSaveExercise(exercise)}
@@ -701,6 +570,7 @@ export default function GymSession() {
                             <TextInput
                               style={styles.setInput}
                               placeholder="Time"
+                              placeholderTextColor="#666"
                               value={set.time?.toString() || ''}
                               onChangeText={(value) => handleUpdateSet(exercise.id, parseInt(supersetNum), setIndex, 'time', value ? parseFloat(value) : null)}
                               onBlur={() => handleSaveExercise(exercise)}
@@ -795,6 +665,7 @@ export default function GymSession() {
                 <TextInput
                   style={styles.addExerciseInput}
                   placeholder="Exercise Name"
+                  placeholderTextColor="#666"
                   value={newExerciseName}
                   onChangeText={setNewExerciseName}
                   autoFocus={true}
@@ -828,7 +699,7 @@ export default function GymSession() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: '#000',
   },
   keyboardAvoidingView: {
     flex: 1,
@@ -838,28 +709,20 @@ const styles = StyleSheet.create({
   },
   scrollViewContent: {
     padding: 16,
-    paddingBottom: 100, // Extra padding to ensure plus button doesn't overlap content
+    paddingBottom: 100,
   },
   sessionHeader: {
-    backgroundColor: '#000000',
+    backgroundColor: '#000',
     padding: 16,
     borderRadius: 12,
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
     flex: 1,
     alignItems: 'center',
   },
   sessionTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#e5e5e5',
     marginBottom: 4,
   },
   sessionDate: {
@@ -877,12 +740,13 @@ const styles = StyleSheet.create({
     width: '100%',
     minHeight: 100,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#333',
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     marginBottom: 16,
-    backgroundColor: 'white',
+    backgroundColor: '#1a1a1a',
+    color: '#e5e5e5',
     fontSize: 16,
     textAlignVertical: 'top',
   },
@@ -905,7 +769,7 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: 'black',
+    backgroundColor: '#1a1a1a',
     borderColor: '#FF6B35',
     borderWidth: 1,
     alignItems: 'center',
@@ -918,22 +782,16 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   supersetBox: {
-    backgroundColor: 'white',
+    backgroundColor: '#1a1a1a',
     borderRadius: 12,
     padding: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#333',
   },
   headerRow: {
     flexDirection: 'row',
     borderBottomWidth: 2,
-    borderBottomColor: '#ddd',
+    borderBottomColor: '#333',
     paddingBottom: 8,
     marginBottom: 12,
   },
@@ -950,7 +808,7 @@ const styles = StyleSheet.create({
   columnHeader: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#666',
+    color: '#999',
     textAlign: 'center',
   },
   exerciseRow: {
@@ -961,27 +819,27 @@ const styles = StyleSheet.create({
   },
   exerciseNameInput: {
     fontSize: 16,
-    color: '#333',
+    color: '#e5e5e5',
     borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
+    borderBottomColor: '#333',
     paddingBottom: 4,
     minHeight: 20,
     justifyContent: 'center',
   },
   exerciseNameText: {
     fontSize: 16,
-    color: '#333',
+    color: '#e5e5e5',
   },
   exerciseNamePlaceholder: {
-    color: '#999',
+    color: '#666',
   },
-    setsScrollContainer: {
-      flex: 8,
-      marginHorizontal: 8,
-    },
-    setsScrollView: {
-      flex: 1,
-    },
+  setsScrollContainer: {
+    flex: 8,
+    marginHorizontal: 8,
+  },
+  setsScrollView: {
+    flex: 1,
+  },
   setsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -991,12 +849,13 @@ const styles = StyleSheet.create({
   },
   setInput: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#333',
     borderRadius: 6,
     padding: 8,
     fontSize: 14,
     textAlign: 'center',
-    backgroundColor: 'white',
+    backgroundColor: '#1a1a1a',
+    color: '#e5e5e5',
     width: 60,
   },
   addSetButton: {
@@ -1005,7 +864,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderColor: '#FF6B35',
     borderWidth: 1,
-    backgroundColor: 'white',
+    backgroundColor: '#1a1a1a',
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 8,
@@ -1021,7 +880,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderColor: '#FF6B35',
     borderWidth: 1,
-    backgroundColor: 'white',
+    backgroundColor: '#1a1a1a',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 4,
@@ -1042,7 +901,7 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: '#ff9800',
+    backgroundColor: '#FF6B35',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
@@ -1058,11 +917,10 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderColor: '#FF6B35',
     borderWidth: 1,
-    backgroundColor: 'white',
+    backgroundColor: '#1a1a1a',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 40,
-
   },
   addSupersetButton: {
     position: 'absolute',
@@ -1073,7 +931,7 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     borderColor: '#FF6B35',
     borderWidth: 1,
-    backgroundColor: '#000',
+    backgroundColor: '#1a1a1a',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -1094,26 +952,28 @@ const styles = StyleSheet.create({
   loadingText: {
     textAlign: 'center',
     fontSize: 16,
-    color: '#666',
+    color: '#999',
     marginTop: 40,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: 'white',
+    backgroundColor: '#1a1a1a',
     borderRadius: 12,
     padding: 20,
     width: '80%',
     maxHeight: '70%',
+    borderWidth: 1,
+    borderColor: '#333',
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#e5e5e5',
     marginBottom: 16,
     textAlign: 'center',
   },
@@ -1124,22 +984,22 @@ const styles = StyleSheet.create({
   exerciseListItem: {
     padding: 16,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#333',
     borderRadius: 8,
     marginBottom: 8,
-    backgroundColor: 'white',
+    backgroundColor: '#1a1a1a',
   },
   exerciseListItemText: {
     fontSize: 16,
-    color: '#333',
+    color: '#e5e5e5',
   },
   addExerciseListItem: {
     padding: 16,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#FF6B35',
     borderRadius: 8,
     marginBottom: 8,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#252525',
   },
   addExerciseListItemText: {
     fontSize: 16,
@@ -1147,13 +1007,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   modalCancelButton: {
-    backgroundColor: '#ccc',
+    backgroundColor: '#333',
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',
   },
   modalCancelButtonText: {
-    color: 'white',
+    color: '#e5e5e5',
     fontSize: 16,
     fontWeight: 'bold',
   },
@@ -1163,18 +1023,19 @@ const styles = StyleSheet.create({
   addExerciseTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#e5e5e5',
     marginBottom: 16,
     textAlign: 'center',
   },
   addExerciseInput: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#333',
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
     marginBottom: 16,
-    backgroundColor: 'white',
+    backgroundColor: '#1a1a1a',
+    color: '#e5e5e5',
   },
   addExerciseButtons: {
     flexDirection: 'row',
