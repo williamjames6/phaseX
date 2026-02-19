@@ -130,10 +130,10 @@ export async function chainRunner(
         let sessionString = "";
         let actionString = "";
 
-         //#region Query Actions Table
+         //#region Query FieldActions Table
          // Query Actions table for entries matching relevant dates, process and append to actionString
          const { data: actionsData, error: actionsError } = await supabase
-         .from('Actions')
+         .from('FieldActions')
          .select('description, session_date, time_stamp_seconds')
          .in('session_date', relevantDatesList);
 
@@ -175,12 +175,12 @@ export async function chainRunner(
          }
          //#endregion
 
-         //#region Query Sessions Table
+         //#region Query FieldSessions Table
          // Query Sessions table for entries matching relevant dates. Since already have all the actions from
          // the actions table, just want to pull high level subjective scores from Sessions table. Process and 
          // append to sessionString
          const { data: fieldSessionData, error: fieldSessionsError } = await supabase
-             .from('Sessions')
+             .from('FieldSessions')
              .select('date, description, mental_score, overall_score, physical_score, type')
              .in('date', relevantDatesList);
 
@@ -200,6 +200,8 @@ export async function chainRunner(
         console.log('Gym Sessions data:', gymString);
         console.log('Field sessions data: ', sessionString);
         //#endregion
+
+        //#region Assemble backend data for model call
         const relevantDateInputList = [];
         relevantDateInputList.push({
             role: 'user',
@@ -217,6 +219,8 @@ export async function chainRunner(
             role: 'user',
             content: query
         })
+        //#endregion
+
         messages = [
             {
             role: 'system',

@@ -22,7 +22,7 @@ BEGIN
     a.session_id,
     a.time_stamp_seconds,
     a.session_date
-  FROM "Actions" a
+  FROM "FieldActions" a
   WHERE a.description_embedding IS NOT NULL
     AND cosine_similarity(a.description_embedding, query_embedding) > match_threshold
   ORDER BY similarity DESC

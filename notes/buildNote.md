@@ -46,6 +46,7 @@ FIXED- Download function not working across year boundary (i.e. downloads all en
         -Problem was mutliple sessions one day. FieldIndex incremented on first session, but then next session with same date never satisfied constraints to enter into block. Fix: changed from "if" block to "while" block
 FIXED- MAJOR PODS BUG PREVENTING BUILD. PROBLEM WITH UDPATE TO EXPO SDK54
     -If ever encountering "bundle not found" error on iPhone build, change scheme from "development build" to "production build". Dev build automatically looks for Metro port.
+- Session meta-scores not saving to backend
 
 
 **Features to add**

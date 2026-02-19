@@ -107,55 +107,22 @@ export default function JournalEntryIndex() {
         
         setActions(existingActions);
         setNextId(Math.abs(existingActions.length) + 1);
-      } else if (sessionType === "training") {
-        // Load training session scores and actions
-        const { data: sessionData, error: sessionError } = await supabase
-          .from('FieldSessions')
-          .select('physical_score, mental_score, overall_score')
-          .eq('id', sessionId)
-          .single();
+      } else if (sessionType !== "note") {
+        let sessionData: { physical_score?: number | null; mental_score?: number | null; overall_score?: number | null } | null = null;
 
-        const { data: actionsData, error: actionsError } = await supabase
-          .from('FieldActions')
-          .select('id, time_stamp_seconds, description, sketch_id')
-          .eq('session_id', sessionId)
-          .order('time_stamp_seconds', { ascending: true });
-
-        if (actionsError) {
-          console.error('Error loading actions:', actionsError);
-          return;
+        if (sessionType === "training" || sessionType === "game") {
+          const { data: trainingSessionData, error: sessionError } = await supabase
+            .from('FieldSessions')
+            .select('physical_score, mental_score, overall_score')
+            .eq('id', sessionId)
+            .single();
+          if (sessionError) {
+            console.error('Error loading training session:', sessionError);
+          } else {
+            sessionData = trainingSessionData;
+          }
         }
 
-        // Create first action with training scores
-        const firstAction: Action = {
-          id: -1,
-          timestamp: "",
-          description: "",
-          dbId: uuidv4(),
-          sketch_id: uuidv4(),
-          physical_score: sessionData?.physical_score || undefined,
-          mental_score: sessionData?.mental_score || undefined,
-          overall_score: sessionData?.overall_score || undefined,
-        };
-
-        // Convert database actions to local action format
-        const existingActions: Action[] = [firstAction];
-        
-        if (actionsData && actionsData.length > 0) {
-          const otherActions: Action[] = actionsData.map((dbAction, index) => ({
-            id: -(index + 2), // Start from -2 since -1 is the first action
-            timestamp: timeSwitch(dbAction.time_stamp_seconds),
-            description: dbAction.description,
-            dbId: dbAction.id,
-            sketch_id: dbAction.sketch_id
-          }));
-          existingActions.push(...otherActions);
-        }
-        
-        setActions(existingActions);
-        setNextId(Math.abs(existingActions.length) + 1);
-      } else {
-        // Handle regular sessions with timestamps
         const { data, error } = await supabase
           .from('FieldActions')
           .select('id, time_stamp_seconds, description, sketch_id')
@@ -167,28 +134,44 @@ export default function JournalEntryIndex() {
           return;
         }
         
-        // Convert database actions to local action format
-        const existingActions: Action[] = (data || []).map((dbAction, index) => ({
-          id: -(index + 1), // Use negative IDs to avoid conflicts with new actions
+        const existingActions: Action[] = [];
+
+        if (sessionType === "training" || sessionType === "game") {
+          const firstAction: Action = {
+            id: -1,
+            timestamp: "",
+            description: "",
+            dbId: uuidv4(),
+            sketch_id: uuidv4(),
+            physical_score: sessionData?.physical_score || undefined,
+            mental_score: sessionData?.mental_score || undefined,
+            overall_score: sessionData?.overall_score || undefined,
+          };
+          existingActions.push(firstAction);
+        }
+
+        const mappedActions: Action[] = (data || []).map((dbAction, index) => ({
+          id: -(index + (sessionType === "training" || sessionType === "game" ? 2 : 1)),
           timestamp: timeSwitch(dbAction.time_stamp_seconds),
           description: dbAction.description,
-          dbId: dbAction.id, // Store the actual database ID
+          dbId: dbAction.id,
           sketch_id: dbAction.sketch_id
         }));
-        
+        existingActions.push(...mappedActions);
+
         if (existingActions.length === 0) {
           const starterAction: Action = {
             id: -1,
             timestamp: "",
             description: "",
-            dbId: uuidv4(), 
+            dbId: uuidv4(),
             sketch_id: uuidv4(),
-          }
-          existingActions.push(starterAction) 
+          };
+          existingActions.push(starterAction);
         }
         
         setActions(existingActions);
-        setNextId(Math.abs(existingActions.length) + 1); // Set next ID after existing actions
+        setNextId(Math.abs(existingActions.length) + 1);
       }
     } catch (error) {
       console.error('Error loading existing actions:', error);
@@ -354,6 +337,7 @@ export default function JournalEntryIndex() {
       const response = await client.embeddings.create({
         model: "text-embedding-3-small",
         input: action.description,
+        encoding_format: "float",
       });
 
       if (!response) return;
@@ -435,14 +419,12 @@ export default function JournalEntryIndex() {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            console.log(action.dbId, typeof(action.dbId));
             try {
               const { data, error } = await supabase
               .from('FieldActions')
               .delete()
               .eq('id', action.dbId)
               .select();
-              console.log(data);
               setActions(actions.filter((a) => a !== action));
             } catch (error) {
               console.error('Error deleting action:', error);
