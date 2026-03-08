@@ -1,6 +1,6 @@
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Alert, Keyboard, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { dateFormatter } from "../../../assets/helpers/dateFormatter";
 import { supabase } from '../../../lib/supabase';
@@ -11,13 +11,34 @@ interface GymSession {
   data: any; // JSONB data for storing superset information
 }
 
+type GymIndexCache = {
+  sessions: GymSession[];
+  initialized: boolean;
+  scrollY: number;
+  hasMore: boolean;
+  offset: number;
+};
+
+const gymIndexCache: GymIndexCache = {
+  sessions: [],
+  initialized: false,
+  scrollY: 0,
+  hasMore: true,
+  offset: 0,
+};
+
 export default function GymIndex() {
-  const [sessions, setSessions] = useState<GymSession[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [sessions, setSessions] = useState<GymSession[]>(gymIndexCache.sessions);
+  const [loading, setLoading] = useState(!gymIndexCache.initialized);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(gymIndexCache.hasMore);
   const [showModal, setShowModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const scrollViewRef = useRef<ScrollView>(null);
+  const offsetRef = useRef(gymIndexCache.offset);
+  const limit = 20;
 
-  const loadSessions = async () => {
+  const loadSessions = useCallback(async (isLoadMore = false) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -25,27 +46,69 @@ export default function GymIndex() {
         return;
       }
 
+      const currentOffset = isLoadMore ? offsetRef.current : 0;
+
       const { data, error } = await supabase
         .from('GymSessions')
         .select('*')
         .eq('user_id', user.id)
-        .order('session_date', { ascending: false });
+        .order('session_date', { ascending: false })
+        .range(currentOffset, currentOffset + limit - 1);
 
       if (error) throw error;
-      setSessions(data || []);
+      const nextSessions = data || [];
+      if (isLoadMore) {
+        setSessions(prevSessions => {
+          const mergedSessions = [...prevSessions, ...nextSessions];
+          gymIndexCache.sessions = mergedSessions;
+          return mergedSessions;
+        });
+      } else {
+        setSessions(nextSessions);
+        gymIndexCache.sessions = nextSessions;
+      }
+
+      offsetRef.current = currentOffset + nextSessions.length;
+      gymIndexCache.offset = offsetRef.current;
+
+      const nextHasMore = nextSessions.length === limit;
+      setHasMore(nextHasMore);
+      gymIndexCache.hasMore = nextHasMore;
+      gymIndexCache.initialized = true;
     } catch (error) {
       console.error('Error loading sessions:', error);
       Alert.alert('Error', 'Failed to load gym sessions');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
-  };
+  }, [limit]);
 
   useFocusEffect(
     useCallback(() => {
-      loadSessions();
-    }, [])
+      if (!gymIndexCache.initialized) {
+        loadSessions();
+        return;
+      }
+
+      requestAnimationFrame(() => {
+        scrollViewRef.current?.scrollTo({
+          y: gymIndexCache.scrollY,
+          animated: false,
+        });
+      });
+    }, [loadSessions])
   );
+
+  const handleScroll = useCallback((event: any) => {
+    gymIndexCache.scrollY = event.nativeEvent.contentOffset.y;
+  }, []);
+
+  const handleLoadMore = async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    await loadSessions(true);
+  };
 
   const handleNewSession = () => {
     setSelectedDate(new Date());
@@ -132,7 +195,11 @@ export default function GymIndex() {
       if (error) throw error;
 
       // Remove session from local state
-      setSessions(prevSessions => prevSessions.filter(s => s.id !== session.id));
+      setSessions(prevSessions => {
+        const filteredSessions = prevSessions.filter(s => s.id !== session.id);
+        gymIndexCache.sessions = filteredSessions;
+        return filteredSessions;
+      });
       
       Alert.alert('Success', 'Gym session deleted successfully');
     } catch (error) {
@@ -144,7 +211,12 @@ export default function GymIndex() {
   return (
     <View style={styles.container}>
 
-      <ScrollView style={styles.sessionsContainer}>
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.sessionsContainer}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+      >
         <View style={styles.addContainer}>           
           <TouchableOpacity style={styles.addButton} onPress={handleNewSession}>
             <Text style={styles.plusSign}>+</Text>
@@ -153,18 +225,31 @@ export default function GymIndex() {
         {loading ? (
           <Text style={styles.loadingText}>Loading sessions...</Text>
         ) : sessions.length > 0 ? (
-          sessions.map((session) => (
-            <TouchableOpacity
-              key={session.id}
-              style={styles.sessionCard}
-              onPress={() => handleSessionPress(session)}
-              onLongPress={() => handleSessionLongPress(session)}
-            >
-              <View style={styles.sessionHeader}>
-                <Text style={styles.sessionDate}>{session.session_date}</Text>
-              </View>
-            </TouchableOpacity>
-          ))
+          <View>
+            {sessions.map((session) => (
+              <TouchableOpacity
+                key={session.id}
+                style={styles.sessionCard}
+                onPress={() => handleSessionPress(session)}
+                onLongPress={() => handleSessionLongPress(session)}
+              >
+                <View style={styles.sessionHeader}>
+                  <Text style={styles.sessionDate}>{session.session_date}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+            {hasMore && (
+              <TouchableOpacity
+                style={styles.loadMoreButton}
+                onPress={handleLoadMore}
+                disabled={loadingMore}
+              >
+                <Text style={styles.loadMoreButtonText}>
+                  {loadingMore ? 'Loading...' : 'Load More'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
         ) : (
           <Text style={styles.noSessionsText}>
             No gym sessions yet. Create your first one!
@@ -302,6 +387,20 @@ const styles = StyleSheet.create({
     color: '#999',
     marginTop: 40,
     fontStyle: 'italic',
+  },
+  loadMoreButton: {
+    backgroundColor: '#FF6B35',
+    padding: 15,
+    borderRadius: 8,
+    width: '100%',
+    alignItems: 'center',
+    marginTop: 10,
+    marginBottom: 12,
+  },
+  loadMoreButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   modalOverlay: {
     flex: 1,

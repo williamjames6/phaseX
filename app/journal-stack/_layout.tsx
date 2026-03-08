@@ -1,5 +1,4 @@
 import { Stack } from 'expo-router';
-import React from 'react';
 
 export default function JournalLayout() {
   return (
@@ -26,11 +25,11 @@ export default function JournalLayout() {
       <Stack.Screen
         name="journalEntry/sketchpad/new"
         options={{
-          title: 'Sketchpad',
+          title: 'Journal Entry',
           headerStyle: {
-            backgroundColor: '#fff3e0',
+            backgroundColor: '#000',
           },
-          headerTintColor: '#000',
+          headerTintColor: '#ffffff',
           headerTitleStyle: {
             fontWeight: 'bold',
           },

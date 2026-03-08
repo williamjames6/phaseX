@@ -5,15 +5,17 @@ import { File, Paths } from 'expo-file-system';
 import { router } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { OpenAI } from 'openai';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Animated, Dimensions, Image, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import useAppState from 'react-native-useappstate';
 import { dateFormatter } from '../../assets/helpers/dateFormatter';
 import { convertToCSV } from '../../assets/helpers/json2SCV';
+import { type GmailMessagePart, processAttachments, type ProcessedAttachment } from '../../assets/helpers/processAttachments';
 import { timeSwitch } from '../../assets/helpers/timeSwitch';
 import { chainRunner } from '../../chainRunner';
 import SidebarModal from '../../components/SidebarModal';
 import { useHeaderWithMenu } from '../../hooks/useHeaderWithMenu';
+import { getGoogleProviderToken } from '../../lib/googleProviderToken';
 import { supabase } from '../../lib/supabase';
 
 
@@ -24,6 +26,49 @@ const client = new OpenAI({
   dangerouslyAllowBrowser: true // Required for Expo/React Native
 });
 
+type GmailMessageRef = {
+  id: string;
+  threadId: string;
+};
+
+type GmailMessageListResponse = {
+  messages?: GmailMessageRef[];
+};
+
+type GmailHeader = {
+  name: string;
+  value: string;
+};
+
+type GmailMessage = {
+  id: string;
+  threadId: string;
+  snippet?: string;
+  labelIds?: string[];
+  internalDate?: string;
+  payload?: GmailMessagePart;
+};
+
+type ExtractedLatestEmail = {
+  id: string;
+  threadId: string;
+  from: string;
+  to: string;
+  subject: string;
+  date: string;
+  snippet: string;
+  labelIds: string[];
+  receivedAt: string;
+  attachments: ProcessedAttachment[];
+};
+
+function getHeaderValue(headers: GmailHeader[] | undefined, key: string): string {
+  if (!headers?.length) {
+    return '';
+  }
+  const header = headers.find((item) => item.name.toLowerCase() === key.toLowerCase());
+  return header?.value ?? '';
+}
 
 export default function HomeScreen() {
   const [query, setQuery] = useState('');
@@ -42,12 +87,135 @@ export default function HomeScreen() {
   const appState = useAppState();
   const rotationValue = useRef(new Animated.Value(0)).current;
   const timeoutRef = useRef<number | null>(null);
+  const hasFetchedLatestEmailRef = useRef(false);
 
 
   //sleep modal for first login of the day
   useEffect(() => {
     sleepCheck();
   }, []);
+
+  const fetchLatestPhysicalDataEmail = useCallback(async () => {
+    try {
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+      if (sessionError) {
+        throw sessionError;
+      }
+
+      const providerToken = session?.provider_token ?? (await getGoogleProviderToken());
+      if (!providerToken) {
+        console.log('No Google provider token on session. Skipping Gmail read.');
+        return;
+      }
+
+      const messagesResponse = await fetch(
+        'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=1&q=label:physicalData',
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${providerToken}`,
+          },
+        }
+      );
+
+      if (!messagesResponse.ok) {
+        const responseBody = await messagesResponse.text();
+        throw new Error(`Failed to list Gmail messages: ${messagesResponse.status} ${responseBody}`);
+      }
+
+      const messagesData = (await messagesResponse.json()) as GmailMessageListResponse;
+      const latestMessageRef = messagesData.messages?.[0];
+      if (!latestMessageRef) {
+        console.log('No emails found in Gmail label "physicalData".');
+        return;
+      }
+
+      const messageResponse = await fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(latestMessageRef.id)}?format=full`,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${providerToken}`,
+          },
+        }
+      );
+
+      if (!messageResponse.ok) {
+        const responseBody = await messageResponse.text();
+        throw new Error(`Failed to load Gmail message: ${messageResponse.status} ${responseBody}`);
+      }
+
+      const latestMessage = (await messageResponse.json()) as GmailMessage;
+      const payloadHeaders = latestMessage.payload?.headers;
+
+      const fetchAttachmentData = async (attachmentId: string): Promise<string> => {
+        const attachmentResponse = await fetch(
+          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(latestMessage.id)}/attachments/${encodeURIComponent(attachmentId)}`,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${providerToken}`,
+            },
+          }
+        );
+
+        if (!attachmentResponse.ok) {
+          const responseBody = await attachmentResponse.text();
+          throw new Error(`Failed to fetch Gmail attachment: ${attachmentResponse.status} ${responseBody}`);
+        }
+
+        const attachmentPayload = (await attachmentResponse.json()) as { data?: string };
+        if (!attachmentPayload.data) {
+          throw new Error('Gmail attachment payload did not include data');
+        }
+        return attachmentPayload.data;
+      };
+
+      const parsePdfTextWithEdgeFunction = async (pdfBase64: string, filename: string): Promise<string> => {
+        const { data, error } = await supabase.functions.invoke('extract-pdf-text', {
+          body: { pdfBase64, filename },
+        });
+        if (error) {
+          throw new Error(error.message || 'Edge function call failed');
+        }
+
+        const payload = data as { text?: string } | null;
+        return payload?.text ?? '';
+      };
+
+      console.log("MADE HERE");
+      const attachments = await processAttachments(latestMessage.payload, fetchAttachmentData, {
+        parsePdfText: parsePdfTextWithEdgeFunction,
+      });
+      const extractedEmail: ExtractedLatestEmail = {
+        id: latestMessage.id,
+        threadId: latestMessage.threadId,
+        from: getHeaderValue(payloadHeaders, 'From'),
+        to: getHeaderValue(payloadHeaders, 'To'),
+        subject: getHeaderValue(payloadHeaders, 'Subject'),
+        date: getHeaderValue(payloadHeaders, 'Date'),
+        snippet: latestMessage.snippet ?? '',
+        labelIds: latestMessage.labelIds ?? [],
+        receivedAt: latestMessage.internalDate ? new Date(Number(latestMessage.internalDate)).toISOString() : '',
+        attachments,
+      };
+
+      console.log('Latest physicalData email extracted:', extractedEmail);
+    } catch (error) {
+      console.error('Failed to fetch latest physicalData email:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (hasFetchedLatestEmailRef.current) {
+      return;
+    }
+    hasFetchedLatestEmailRef.current = true;
+    fetchLatestPhysicalDataEmail();
+  }, [fetchLatestPhysicalDataEmail]);
 
   //auto log out if screen in background for 10 minutes or more
   useEffect(() => {
@@ -190,7 +358,7 @@ export default function HomeScreen() {
   };
 
   // Memoize the headerRight function to prevent unnecessary re-renders
-  const headerRight = useMemo(() => () => (
+  const renderHeaderRight = useCallback(() => (
     <TouchableOpacity 
       onPress={() => setShowDownloadModal(true)}
       style={{ 
@@ -340,7 +508,7 @@ export default function HomeScreen() {
   useHeaderWithMenu({
     title: 'phaseX',
     onMenuPress: toggleSidebar,
-    headerRight: headerRight,
+    headerRight: renderHeaderRight,
   });
 
   return (

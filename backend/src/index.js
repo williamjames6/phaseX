@@ -5,12 +5,6 @@ import { simpleParser } from 'mailparser';
 import PDFParser from 'pdf2json';
 import { config } from '../backend.config.js';
 
-// Get the directory name
-// const __filename = fileURLToPath(import.meta.url);
-// const __dirname = path.dirname(__filename);
-
-// // Load environment variables from the correct path
-// dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 // Debug log environment variables
 console.log('Environment check:');

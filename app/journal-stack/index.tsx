@@ -1,6 +1,6 @@
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Alert, Keyboard, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { dateFormatter } from "../../assets/helpers/dateFormatter";
 import SidebarModal from '../../components/SidebarModal';
@@ -14,13 +14,29 @@ interface Session {
   description: string | null;
 }
 
+type JournalIndexCache = {
+  recentSessions: Session[];
+  hasMore: boolean;
+  offset: number;
+  scrollY: number;
+  initialized: boolean;
+};
+
+const journalIndexCache: JournalIndexCache = {
+  recentSessions: [],
+  hasMore: true,
+  offset: 0,
+  scrollY: 0,
+  initialized: false,
+};
+
 export default function JournalIndex() {
-  const [recentSessions, setRecentSessions] = useState<Session[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [recentSessions, setRecentSessions] = useState<Session[]>(journalIndexCache.recentSessions);
+  const [loading, setLoading] = useState(!journalIndexCache.initialized);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-  const offsetRef = useRef(0);
-  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(journalIndexCache.hasMore);
+  const offsetRef = useRef(journalIndexCache.offset);
+  const scrollViewRef = useRef<ScrollView>(null);
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -30,11 +46,6 @@ export default function JournalIndex() {
   const today = new Date();
   const twoYearsAgo = new Date();
   twoYearsAgo.setFullYear(today.getFullYear() - 2);
-
-  useEffect(() => {
-    console.log("Mounted: journal stack index page");
-    return () => console.log("Unmounted: journal stack index page");
-  }, []);
 
   // Memoize the onMenuPress callback
   const handleMenuPress = useCallback(() => {
@@ -88,26 +99,24 @@ export default function JournalIndex() {
 
       if (isLoadMore) {
         setRecentSessions(prev => {
-          console.log("Previous length:", prev.length);
-          console.log("New data length:", (data || []).length);
-          console.log("New total length:", [...prev, ...(data || [])].length);
-          return [...prev, ...(data || [])]
-        })
-        // setRecentSessions(prev => {
-        //   // Remove master session from prev if it exists, then add all new sessions
-        //   const prevWithoutMaster = prev.filter(session => session.date !== null);
-        //   console.log("setting recent session: ", [...prevWithoutMaster, ...(data || [])].length);
-        //   return [...prevWithoutMaster, ...(data || [])];
-        // });
-        console.log("Old recent session length: ", recentSessions.length);
+          const mergedSessions = [...prev, ...(data || [])];
+          journalIndexCache.recentSessions = mergedSessions;
+          return mergedSessions;
+        });
         offsetRef.current = currentOffset + limit;
+        journalIndexCache.offset = offsetRef.current;
       } else {
         setRecentSessions(allSessions);
         offsetRef.current = limit;
+        journalIndexCache.recentSessions = allSessions;
+        journalIndexCache.offset = limit;
       }
 
       // Check if there are more sessions to load
-      setHasMore((data || []).length === limit);
+      const nextHasMore = (data || []).length === limit;
+      setHasMore(nextHasMore);
+      journalIndexCache.hasMore = nextHasMore;
+      journalIndexCache.initialized = true;
     } catch (error) {
       console.error('Error loading sessions:', error);
     } finally {
@@ -126,9 +135,23 @@ export default function JournalIndex() {
   // Refresh sessions when user returns to this page (e.g., after deleting a session)
   useFocusEffect(
     useCallback(() => {
-      loadRecentSessions();
+      if (!journalIndexCache.initialized) {
+        loadRecentSessions();
+        return;
+      }
+
+      requestAnimationFrame(() => {
+        scrollViewRef.current?.scrollTo({
+          y: journalIndexCache.scrollY,
+          animated: false,
+        });
+      });
     }, [loadRecentSessions])
   );
+
+  const handleScroll = useCallback((event: any) => {
+    journalIndexCache.scrollY = event.nativeEvent.contentOffset.y;
+  }, []);
 
   const handleNewSession = async () => {
     setShowModal(true);
@@ -278,7 +301,13 @@ export default function JournalIndex() {
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+      >
 
       <View style={styles.addContainer}>           
         <TouchableOpacity style={styles.addButton} onPress={handleNewSession}>

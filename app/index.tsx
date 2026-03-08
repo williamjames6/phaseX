@@ -1,15 +1,17 @@
+import * as Linking from 'expo-linking';
 import * as LocalAuthentication from 'expo-local-authentication';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Animated, Dimensions, Image, Keyboard, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Animated, Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { v4 as uuidv4 } from 'uuid';
+import { setGoogleProviderToken } from '../lib/googleProviderToken';
 import { supabase } from '../lib/supabase';
 
+WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const fromRegister = useLocalSearchParams().fromRegister;
+  const [isSigningIn, setIsSigningIn] = useState(false);
   const isMountedRef = useRef(true);
   
   // Animation values
@@ -29,7 +31,7 @@ export default function LoginScreen() {
       const {data, error} = await supabase.auth.refreshSession();
       if (error) {
         console.log(error);
-        Alert.alert("Please enter username and password to activate session");
+        Alert.alert('Please sign in with Google to activate your session');
         return;
       };
       if (result && data?.session?.refresh_token && data?.session?.access_token && data?.user?.id) {
@@ -37,7 +39,7 @@ export default function LoginScreen() {
         router.replace(`/home`);
         return;
       };
-    } catch (error) {
+    } catch {
       Alert.alert('Error');
     }
   }, []);
@@ -73,13 +75,13 @@ export default function LoginScreen() {
       // Check if component is still mounted before proceeding
       if (!isMountedRef.current) return;
       
-      const {data, error} = await supabase.auth.getSession();
+      const {data} = await supabase.auth.getSession();
       if (data?.session && isMountedRef.current) {
         console.log("appState is active and session is active");
         handleFaceID();
         return;
       } else {
-        console.log("Session not active. Enter username and password");
+        console.log('Session not active. Sign in with Google');
         return;
       }
     };
@@ -97,47 +99,136 @@ export default function LoginScreen() {
       console.log('unmounted');
       isMountedRef.current = false;
     };
-  }, [handleFaceID]);
+  }, [handleFaceID, loginOpacity, loginTranslateY]);
 
-  const handleLogin = async () => {
+  const ensureMasterSession = async (userId: string) => {
+    const { data: existingSessions, error: fetchError } = await supabase
+      .from('FieldSessions')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('type', 'note')
+      .limit(1);
+
+    if (fetchError) {
+      console.error('Error checking Master session:', fetchError);
+      return;
+    }
+
+    if (!existingSessions || existingSessions.length > 0) {
+      return;
+    }
+
+    const masterSessionId = uuidv4();
+    const { error: insertError } = await supabase
+      .from('FieldSessions')
+      .insert([
+        {
+          id: masterSessionId,
+          user_id: userId,
+          type: 'note',
+          date: null,
+          description: '',
+        },
+      ]);
+
+    if (insertError) {
+      console.error('Error creating Master session:', insertError);
+      return;
+    }
+
+    console.log('Master session created successfully');
+  };
+
+  const handleGoogleLogin = async () => {
+    if (isSigningIn) {
+      return;
+    }
+
+    setIsSigningIn(true);
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: username,
-        password: password,
+      const redirectTo = Linking.createURL('auth/callback', { scheme: 'phasex' });
+      console.log('OAuth redirectTo:', redirectTo);
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo,
+          skipBrowserRedirect: true,
+          scopes: 'https://www.googleapis.com/auth/gmail.readonly',
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
+        },
       });
-      if (!data.session?.refresh_token || !data.session?.access_token) {
-        Alert.alert('Session data not returned from login');
+      console.log("data after signInWithOAuth: ", data);
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data?.url) {
+        Alert.alert('Google sign-in link was not returned');
         return;
       }
-      if (fromRegister) {
-              // Create Master session for the newly registered user
-        if (data.user) {
-          const masterSessionId = uuidv4();
-          const { error: sessionError } = await supabase
-            .from('FieldSessions')
-            .insert([
-              {
-                id: masterSessionId,
-                user_id: data.user.id,
-                type: 'note',
-                date: null,
-                description: ''
-              }
-            ]);
 
-          if (sessionError) {
-            console.error('Error creating Master session:', sessionError);
-            // Don't fail registration if Master session creation fails
-          } else {
-            console.log('Master session created successfully');
-          }
-        };
-      };      
-      // Navigate to home screen after successful login
-      console.log("USERID from traditional login : ", data.user.id);
+      const authResult = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+      if (authResult.type !== 'success' || !authResult.url) {
+        if (authResult.type !== 'cancel') {
+          Alert.alert('Google sign-in was not completed');
+        }
+        return;
+      }
+      console.log(authResult);
+
+      const callbackUrl = authResult.url;
+      const hash = callbackUrl.split('#')[1];
+      const hashParams = hash ? new URLSearchParams(hash) : null;
+      const accessToken = hashParams?.get('access_token') ?? '';
+      const refreshToken = hashParams?.get('refresh_token') ?? '';
+      const providerToken = hashParams?.get('provider_token') ?? '';
+
+      if (providerToken) {
+        await setGoogleProviderToken(providerToken);
+      }
+
+      if (accessToken && refreshToken) {
+        const { error: setSessionError } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+
+        if (setSessionError) {
+          throw setSessionError;
+        }
+      } else {
+        const code = new URL(callbackUrl).searchParams.get('code');
+        if (!code) {
+          throw new Error('OAuth callback did not include session tokens');
+        }
+
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+        if (exchangeError) {
+          throw exchangeError;
+        }
+      }
+
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !sessionData.session?.user?.id) {
+        throw sessionError ?? new Error('Session not available after Google sign-in');
+      }
+
+      if (sessionData.session.provider_token) {
+        await setGoogleProviderToken(sessionData.session.provider_token);
+      }
+
+      await ensureMasterSession(sessionData.session.user.id);
+      console.log('USERID from Google login:', sessionData.session.user.id);
       router.replace(`/home`);
     } catch (error) {
-      Alert.alert('Error');
+      console.error('Google sign-in failed:', error);
+      Alert.alert('Error signing in with Google');
+    } finally {
+      setIsSigningIn(false);
     }
   };
 
@@ -167,35 +258,14 @@ export default function LoginScreen() {
             />
           </View>
 
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            placeholderTextColor="#666"
-            value={username}
-            onChangeText={setUsername}
-            autoCapitalize="none"
-            keyboardType="email-address"
-          />
-          
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            placeholderTextColor="#666"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            onBlur={() => Keyboard.dismiss()}
-          />
-          
-          <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-            <Text style={styles.loginButtonText}>Sign In</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.registerLink}
-            onPress={() => router.push('/register')}
+          <TouchableOpacity
+            style={styles.loginButton}
+            onPress={handleGoogleLogin}
+            disabled={isSigningIn}
           >
-            <Text style={styles.registerText}>New user? Register here</Text>
+            <Text style={styles.loginButtonText}>
+              {isSigningIn ? 'Connecting to Google...' : 'Begin Google Deflowering Process'}
+            </Text>
           </TouchableOpacity>
         </Animated.View>
       </View>
@@ -247,18 +317,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
   },
-  input: {
-    width: '100%',
-    height: 56,
-    backgroundColor: '#1a1a1a',
-    borderWidth: 1,
-    borderColor: '#333',
-    borderRadius: 16,
-    marginBottom: 16,
-    paddingHorizontal: 20,
-    fontSize: 16,
-    color: '#ffffff',
-  },
   loginButton: {
     width: '100%',
     height: 56,
@@ -281,14 +339,6 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 18,
     fontWeight: '600',
-  },
-  registerLink: {
-    paddingVertical: 12,
-  },
-  registerText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '500',
   },
   logoImage: {
     width: 100,

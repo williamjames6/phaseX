@@ -27,6 +27,7 @@ export default function NewSketchScreen() {
   const [mode, setMode] = useState<'x'|'o'|'solid'|'dashed'|'x-circle'|'o-filled'|'solid-grey'|'dashed-grey'>('solid');
   const [strokeCounts, setStrokeCounts] = useState<number[]>([]);
   const [greyStrokeCounts, setGreyStrokeCounts] = useState<number[]>([]);
+  const [strokeHistory, setStrokeHistory] = useState<('black' | 'grey')[]>([]);
   const actionId = params.actionId as string;
   const sessionId = params.sessionId as string;
   const appState = useRef(AppState.currentState);
@@ -47,6 +48,7 @@ export default function NewSketchScreen() {
         return newGreyPaths;
       });
       setGreyStrokeCounts(prev => [...prev, strokeCount]);
+      setStrokeHistory(prev => [...prev, 'grey']);
     } else {
       setPaths(prev => {
         const newBlackPaths = [...prev, ...newPaths];
@@ -54,6 +56,7 @@ export default function NewSketchScreen() {
         return newBlackPaths;
       });
       setStrokeCounts(prev => [...prev, strokeCount]);
+      setStrokeHistory(prev => [...prev, 'black']);
     }
   };
 
@@ -154,6 +157,9 @@ export default function NewSketchScreen() {
             setGreyPaths(greyPaths);
             pathsRef.current = blackPaths;
             greyPathsRef.current = greyPaths;
+            setStrokeCounts([]);
+            setGreyStrokeCounts([]);
+            setStrokeHistory([]);
             console.log('Black paths:', blackPaths);
             console.log('Grey paths:', greyPaths);
           }
@@ -322,16 +328,16 @@ export default function NewSketchScreen() {
   };
 
   const handleUndo = () => {
-    // Check which array has the most recent stroke
-    const blackCount = strokeCounts.length;
-    const greyCount = greyStrokeCounts.length;
-    
-    if (blackCount === 0 && greyCount === 0) return;
-    
-    // Undo from the array that was last modified
-    if (blackCount > 0 && (greyCount === 0 || blackCount >= greyCount)) {
+    if (strokeHistory.length === 0) return;
+
+    const history = [...strokeHistory];
+    const lastColor = history.pop() as 'black' | 'grey';
+    setStrokeHistory(history);
+
+    if (lastColor === 'black') {
       const counts = [...strokeCounts];
-      const last = counts.pop() as number;
+      const last = counts.pop();
+      if (!last) return;
       setStrokeCounts(counts);
       setPaths(prev => {
         const newPaths = prev.slice(0, Math.max(0, prev.length - last));
@@ -340,7 +346,8 @@ export default function NewSketchScreen() {
       });
     } else {
       const counts = [...greyStrokeCounts];
-      const last = counts.pop() as number;
+      const last = counts.pop();
+      if (!last) return;
       setGreyStrokeCounts(counts);
       setGreyPaths(prev => {
         const newGreyPaths = prev.slice(0, Math.max(0, prev.length - last));
@@ -449,7 +456,7 @@ export default function NewSketchScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff3e0',
+    backgroundColor: 'black',
     padding: 20,
   },
   toolbar: {

@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { v4 as uuidv4 } from 'uuid';
 import { dateFormatter } from '../../../assets/helpers/dateFormatter';
@@ -27,6 +27,7 @@ export default function GymSession() {
   const [exercisesList, setExercisesList] = useState<string[]>([]);
   const [showAddExercise, setShowAddExercise] = useState(false);
   const [newExerciseName, setNewExerciseName] = useState('');
+  const [exerciseSearchQuery, setExerciseSearchQuery] = useState('');
   const [note, setNote] = useState<string>('');
 
 
@@ -67,8 +68,19 @@ export default function GymSession() {
     setShowExerciseModal(true);
     setShowAddExercise(false);
     setNewExerciseName('');
+    setExerciseSearchQuery('');
     loadExercises();
   };
+
+  const filteredExercises = useMemo(() => {
+    const query = exerciseSearchQuery.trim().toLowerCase();
+    if (!query) {
+      return exercisesList;
+    }
+    return exercisesList.filter((exerciseName) =>
+      exerciseName.toLowerCase().includes(query)
+    );
+  }, [exerciseSearchQuery, exercisesList]);
 
   const handleSelectExercise = async (exerciseName: string) => {
     if (!currentExerciseId) return;
@@ -138,7 +150,6 @@ export default function GymSession() {
     exercise_number: exerciseNumber,
     sets: [
       { reps: null, weight: null, time: null },
-      { reps: null, weight: null, time: null },
       { reps: null, weight: null, time: null }
     ]
   });
@@ -194,9 +205,6 @@ export default function GymSession() {
             time: setData.time
           };
         });
-        while (exercise.sets.length < 3) {
-          exercise.sets.push({ reps: null, weight: null, time: null });
-        }
         supersets[supersetNum].push(exercise);
       });
     });
@@ -622,6 +630,7 @@ export default function GymSession() {
           setShowExerciseModal(false);
           setShowAddExercise(false);
           setNewExerciseName('');
+          setExerciseSearchQuery('');
           setCurrentExerciseId(null);
         }}
       >
@@ -631,8 +640,16 @@ export default function GymSession() {
             
             {!showAddExercise ? (
               <>
+                <TextInput
+                  style={styles.modalSearchInput}
+                  placeholder="Search exercises..."
+                  placeholderTextColor="#666"
+                  value={exerciseSearchQuery}
+                  onChangeText={setExerciseSearchQuery}
+                  autoCapitalize="none"
+                />
                 <ScrollView style={styles.exerciseListContainer}>
-                  {exercisesList.map((exerciseName, index) => (
+                  {filteredExercises.map((exerciseName, index) => (
                     <TouchableOpacity
                       key={index}
                       style={styles.exerciseListItem}
@@ -641,6 +658,9 @@ export default function GymSession() {
                       <Text style={styles.exerciseListItemText}>{exerciseName}</Text>
                     </TouchableOpacity>
                   ))}
+                  {filteredExercises.length === 0 && (
+                    <Text style={styles.noResultsText}>No exercises found</Text>
+                  )}
                   <TouchableOpacity
                     style={styles.addExerciseListItem}
                     onPress={() => setShowAddExercise(true)}
@@ -653,6 +673,7 @@ export default function GymSession() {
                   style={styles.modalCancelButton}
                   onPress={() => {
                     setShowExerciseModal(false);
+                    setExerciseSearchQuery('');
                     setCurrentExerciseId(null);
                   }}
                 >
@@ -796,7 +817,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   exerciseColumn: {
-    flex: 2,
+    flex: 4,
     paddingRight: 8,
     justifyContent: 'center',
     alignItems: 'center',
@@ -818,23 +839,25 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   exerciseNameInput: {
-    fontSize: 16,
-    color: '#e5e5e5',
+    width: '100%',
     borderBottomWidth: 1,
     borderBottomColor: '#333',
     paddingBottom: 4,
     minHeight: 20,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   exerciseNameText: {
     fontSize: 16,
     color: '#e5e5e5',
+    textAlign: 'center',
+    width: '100%',
   },
   exerciseNamePlaceholder: {
     color: '#666',
   },
   setsScrollContainer: {
-    flex: 8,
+    flex: 6,
     marginHorizontal: 8,
   },
   setsScrollView: {
@@ -980,6 +1003,22 @@ const styles = StyleSheet.create({
   exerciseListContainer: {
     maxHeight: 400,
     marginBottom: 16,
+  },
+  modalSearchInput: {
+    borderWidth: 1,
+    borderColor: '#333',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+    backgroundColor: '#1a1a1a',
+    color: '#e5e5e5',
+    fontSize: 16,
+  },
+  noResultsText: {
+    color: '#999',
+    textAlign: 'center',
+    marginBottom: 12,
   },
   exerciseListItem: {
     padding: 16,
