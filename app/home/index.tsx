@@ -33,6 +33,7 @@ type GmailMessageRef = {
 
 type GmailMessageListResponse = {
   messages?: GmailMessageRef[];
+  nextPageToken?: string;
 };
 
 type GmailHeader = {
@@ -62,12 +63,88 @@ type ExtractedLatestEmail = {
   attachments: ProcessedAttachment[];
 };
 
+type ParsedTrainingLoadMetrics = {
+  date: string;
+  date_received: string;
+  trimp: number;
+  aerobic_training_effect: number;
+  anaerobic_training_effect: number;
+};
+
 function getHeaderValue(headers: GmailHeader[] | undefined, key: string): string {
   if (!headers?.length) {
     return '';
   }
   const header = headers.find((item) => item.name.toLowerCase() === key.toLowerCase());
   return header?.value ?? '';
+}
+
+function extractSubjectDate(subject: string): string | null {
+  const match = subject.match(/\b\d{1,2}\/\d{1,2}\/\d{4}\b/);
+  if (!match) {
+    return null;
+  }
+
+  const [monthRaw, dayRaw, yearRaw] = match[0].split('/');
+  const month = Number(monthRaw);
+  const day = Number(dayRaw);
+  const year = Number(yearRaw);
+  if (!Number.isFinite(month) || !Number.isFinite(day) || !Number.isFinite(year)) {
+    return null;
+  }
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed.toISOString().slice(0, 10);
+}
+
+function getAttachmentExtractedText(attachments: ProcessedAttachment[]): string {
+  const textChunks: string[] = [];
+  for (const attachment of attachments) {
+    try {
+      const parsed = JSON.parse(attachment.parsedContent) as {
+        data?: string;
+        error?: string;
+      };
+      if (typeof parsed.data === 'string' && parsed.data.trim().length > 0) {
+        textChunks.push(parsed.data);
+      }
+    } catch {
+      continue;
+    }
+  }
+  return textChunks.join('\n');
+}
+
+function parseTrainingLoadMetricsFromEmail(email: ExtractedLatestEmail): ParsedTrainingLoadMetrics | null {
+  const subjectDate = extractSubjectDate(email.subject);
+  const receivedDate = new Date(email.date);
+  if (!subjectDate || Number.isNaN(receivedDate.getTime())) {
+    return null;
+  }
+
+  const attachmentText = getAttachmentExtractedText(email.attachments);
+  if (!attachmentText) {
+    return null;
+  }
+
+  const trimpMatch = attachmentText.match(/TRIMP\s*\n?\s*([0-9]+(?:\.[0-9]+)?)/i);
+  const aerobicMatch = attachmentText.match(/Aerobic Training Effect\s*\n?\s*([0-9]+(?:\.[0-9]+)?)/i);
+  const anaerobicMatch = attachmentText.match(/Anaerobic Training Effect\s*\n?\s*([0-9]+(?:\.[0-9]+)?)/i);
+
+  if (!trimpMatch || !aerobicMatch || !anaerobicMatch) {
+    return null;
+  }
+
+  return {
+    date: subjectDate,
+    date_received: receivedDate.toISOString(),
+    trimp: Number(trimpMatch[1]),
+    aerobic_training_effect: Number(aerobicMatch[1]),
+    anaerobic_training_effect: Number(anaerobicMatch[1]),
+  };
 }
 
 export default function HomeScreen() {
@@ -105,79 +182,32 @@ export default function HomeScreen() {
         throw sessionError;
       }
 
+      const userId = session?.user?.id;
+      if (!userId) {
+        console.log('No authenticated user found. Skipping physicalData sync.');
+        return;
+      }
+
       const providerToken = session?.provider_token ?? (await getGoogleProviderToken());
       if (!providerToken) {
         console.log('No Google provider token on session. Skipping Gmail read.');
         return;
       }
 
-      const messagesResponse = await fetch(
-        'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=1&q=label:physicalData',
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${providerToken}`,
-          },
-        }
-      );
-
-      if (!messagesResponse.ok) {
-        const responseBody = await messagesResponse.text();
-        throw new Error(`Failed to list Gmail messages: ${messagesResponse.status} ${responseBody}`);
-      }
-
-      const messagesData = (await messagesResponse.json()) as GmailMessageListResponse;
-      const latestMessageRef = messagesData.messages?.[0];
-      if (!latestMessageRef) {
-        console.log('No emails found in Gmail label "physicalData".');
-        return;
-      }
-
-      const messageResponse = await fetch(
-        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(latestMessageRef.id)}?format=full`,
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${providerToken}`,
-          },
-        }
-      );
-
-      if (!messageResponse.ok) {
-        const responseBody = await messageResponse.text();
-        throw new Error(`Failed to load Gmail message: ${messageResponse.status} ${responseBody}`);
-      }
-
-      const latestMessage = (await messageResponse.json()) as GmailMessage;
-      const payloadHeaders = latestMessage.payload?.headers;
-
-      const fetchAttachmentData = async (attachmentId: string): Promise<string> => {
-        const attachmentResponse = await fetch(
-          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(latestMessage.id)}/attachments/${encodeURIComponent(attachmentId)}`,
-          {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${providerToken}`,
-            },
-          }
-        );
-
-        if (!attachmentResponse.ok) {
-          const responseBody = await attachmentResponse.text();
-          throw new Error(`Failed to fetch Gmail attachment: ${attachmentResponse.status} ${responseBody}`);
-        }
-
-        const attachmentPayload = (await attachmentResponse.json()) as { data?: string };
-        if (!attachmentPayload.data) {
-          throw new Error('Gmail attachment payload did not include data');
-        }
-        return attachmentPayload.data;
-      };
-
       const parsePdfTextWithEdgeFunction = async (pdfBase64: string, filename: string): Promise<string> => {
-        const { data, error } = await supabase.functions.invoke('extract-pdf-text', {
-          body: { pdfBase64, filename },
-        });
+        const invokeExtractPdf = async () =>
+          supabase.functions.invoke('extract-pdf-text', {
+            body: { pdfBase64, filename },
+          });
+
+        let { data, error } = await invokeExtractPdf();
+
+        if (error?.message?.toLowerCase().includes('failed to send a request to the edge function')) {
+          const retryResult = await invokeExtractPdf();
+          data = retryResult.data;
+          error = retryResult.error;
+        }
+
         if (error) {
           throw new Error(error.message || 'Edge function call failed');
         }
@@ -186,24 +216,163 @@ export default function HomeScreen() {
         return payload?.text ?? '';
       };
 
-      console.log("MADE HERE");
-      const attachments = await processAttachments(latestMessage.payload, fetchAttachmentData, {
-        parsePdfText: parsePdfTextWithEdgeFunction,
-      });
-      const extractedEmail: ExtractedLatestEmail = {
-        id: latestMessage.id,
-        threadId: latestMessage.threadId,
-        from: getHeaderValue(payloadHeaders, 'From'),
-        to: getHeaderValue(payloadHeaders, 'To'),
-        subject: getHeaderValue(payloadHeaders, 'Subject'),
-        date: getHeaderValue(payloadHeaders, 'Date'),
-        snippet: latestMessage.snippet ?? '',
-        labelIds: latestMessage.labelIds ?? [],
-        receivedAt: latestMessage.internalDate ? new Date(Number(latestMessage.internalDate)).toISOString() : '',
-        attachments,
-      };
+      const { data: floorRow, error: floorError } = await supabase
+        .from('TrainingLoad')
+        .select('date_received')
+        .eq('user_id', userId)
+        .order('date_received', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      console.log('Latest physicalData email extracted:', extractedEmail);
+      if (floorError) {
+        throw floorError;
+      }
+
+      const dateFloor = floorRow?.date_received ? new Date(floorRow.date_received) : null;
+      let pageToken: string | undefined;
+      let shouldStop = false;
+
+      while (!shouldStop) {
+        const params = new URLSearchParams({
+          maxResults: '20',
+          q: 'label:physicalData',
+        });
+        if (pageToken) {
+          params.set('pageToken', pageToken);
+        }
+
+        const messagesResponse = await fetch(
+          `https://gmail.googleapis.com/gmail/v1/users/me/messages?${params.toString()}`,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${providerToken}`,
+            },
+          }
+        );
+
+        if (!messagesResponse.ok) {
+          const responseBody = await messagesResponse.text();
+          throw new Error(`Failed to list Gmail messages: ${messagesResponse.status} ${responseBody}`);
+        }
+
+        const messagesData = (await messagesResponse.json()) as GmailMessageListResponse;
+        const messageRefs = messagesData.messages ?? [];
+        if (messageRefs.length === 0) {
+          break;
+        }
+
+        for (const messageRef of messageRefs) {
+          const messageResponse = await fetch(
+            `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(messageRef.id)}?format=full`,
+            {
+              method: 'GET',
+              headers: {
+                Authorization: `Bearer ${providerToken}`,
+              },
+            }
+          );
+
+          if (!messageResponse.ok) {
+            const responseBody = await messageResponse.text();
+            console.error(`Failed to load Gmail message ${messageRef.id}: ${messageResponse.status} ${responseBody}`);
+            continue;
+          }
+
+          const message = (await messageResponse.json()) as GmailMessage;
+          const payloadHeaders = message.payload?.headers;
+
+          const fetchAttachmentData = async (attachmentId: string): Promise<string> => {
+            const attachmentResponse = await fetch(
+              `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(message.id)}/attachments/${encodeURIComponent(attachmentId)}`,
+              {
+                method: 'GET',
+                headers: {
+                  Authorization: `Bearer ${providerToken}`,
+                },
+              }
+            );
+
+            if (!attachmentResponse.ok) {
+              const responseBody = await attachmentResponse.text();
+              throw new Error(`Failed to fetch Gmail attachment: ${attachmentResponse.status} ${responseBody}`);
+            }
+
+            const attachmentPayload = (await attachmentResponse.json()) as { data?: string };
+            if (!attachmentPayload.data) {
+              throw new Error('Gmail attachment payload did not include data');
+            }
+            return attachmentPayload.data;
+          };
+
+          const attachments = await processAttachments(message.payload, fetchAttachmentData, {
+            parsePdfText: parsePdfTextWithEdgeFunction,
+          });
+
+          const extractedEmail: ExtractedLatestEmail = {
+            id: message.id,
+            threadId: message.threadId,
+            from: getHeaderValue(payloadHeaders, 'From'),
+            to: getHeaderValue(payloadHeaders, 'To'),
+            subject: getHeaderValue(payloadHeaders, 'Subject'),
+            date: getHeaderValue(payloadHeaders, 'Date'),
+            snippet: message.snippet ?? '',
+            labelIds: message.labelIds ?? [],
+            receivedAt: message.internalDate ? new Date(Number(message.internalDate)).toISOString() : '',
+            attachments,
+          };
+
+          const receivedAt = new Date(extractedEmail.date);
+          if (Number.isNaN(receivedAt.getTime())) {
+            continue;
+          }
+
+          if (dateFloor && receivedAt.getTime() <= dateFloor.getTime()) {
+            shouldStop = true;
+            break;
+          }
+
+          const metrics = parseTrainingLoadMetricsFromEmail(extractedEmail);
+          if (!metrics) {
+            continue;
+          }
+
+          const { data: existingRow, error: existingRowError } = await supabase
+            .from('TrainingLoad')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('date_received', metrics.date_received)
+            .limit(1)
+            .maybeSingle();
+
+          if (existingRowError) {
+            console.error('Failed to check existing TrainingLoad row:', existingRowError);
+            continue;
+          }
+
+          if (existingRow) {
+            continue;
+          }
+
+          const { error: insertError } = await supabase.from('TrainingLoad').insert({
+            user_id: userId,
+            date: metrics.date,
+            date_received: metrics.date_received,
+            trimp: metrics.trimp,
+            aerobic_training_effect: metrics.aerobic_training_effect,
+            anaerobic_training_effect: metrics.anaerobic_training_effect,
+          });
+
+          if (insertError) {
+            console.error('Failed to insert TrainingLoad row:', insertError);
+          }
+        }
+
+        if (shouldStop || !messagesData.nextPageToken) {
+          break;
+        }
+        pageToken = messagesData.nextPageToken;
+      }
     } catch (error) {
       console.error('Failed to fetch latest physicalData email:', error);
     }

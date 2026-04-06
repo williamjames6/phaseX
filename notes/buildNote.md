@@ -33,20 +33,22 @@ FIXED- timeSwitch() on timestamp of actions before appending to chat query is re
 _WAITING_- Totally convolluted Ref flow for scrollView on gym session. Need to standardize Ref flow across screens for scrolling
 FIXED- something maybe not quite right with backend save (sometimes alert will randomly pop up saying something like "failed to save this action" on a blank action without the user pressing anything. Wondering if the React auto runs some refresh on a timer? )
 FIXED- UTC for dates of journal entries and gym entries (standardize handling of dates)
-_WAITING_- Cannot "undo" on a sketch if you have already left the screen. Also, undo does not work on grey paths.
+_PARTIAL_- Cannot "undo" on a sketch if you have already left the screen. Also, undo does not work on grey paths.
 FIXED- Add gym session button position fixed, should be part of scroll box
 _WAITING_- Weird flow with "Load More" button on journal stack index page. recentSessions length returning after calling setRecentSession() to a list of lenght 30. Consider timing of state updates (batched and synchronous) and rendering. Also, OBO error -- last session before the load more button gets repeated when more sessions loaded.
 _PARTIAL_- Backend not functioning properly for trainingLoad page (network error?)
     -Switch to Google OAuth sign in thru supabase to access user's gmail account. Currently working on extracting PDF content. Have raw binary in Base64 format but conversion of text characters to human readable text not functioning ATM. 
     -Update: going to use supabse edge function to perform pdf processing because pdf2json package only works in Node runtimes and I do not want to have to host the backend myself. Seems to be a bunch of shit withe Docker and Deno that I need to install to make edge functions work.
 FIXED- Download function not working across year boundary (i.e. downloads all entries from 2025 but not any from 2026 for date range that spans across the change of year)
-    - **Initial** Problem was dateFormatter helper function, which did not pad single digit months with zeroes.
+    - Initial problem was dateFormatter helper function, which did not pad single digit months with zeroes.
     -Thought this was fixed, but still not working. Field sessions from 2026 not downloading properly. Also, multiple sessions on a day seems to cause problems
         -Problem was mutliple sessions one day. FieldIndex incremented on first session, but then next session with same date never satisfied constraints to enter into block. Fix: changed from "if" block to "while" block
 FIXED- MAJOR PODS BUG PREVENTING BUILD. PROBLEM WITH UDPATE TO EXPO SDK54
     -If ever encountering "bundle not found" error on iPhone build, change scheme from "development build" to "production build". Dev build automatically looks for Metro port.
 FIXED- Session meta-scores not saving to backend
     -Was happening only for "Game" type sessions because they go thru different processing flow
+_WAITING_- Long hold triggering modal to delete exercise on gym session automatically triggered when focusing "rep", "weight", or "time" input boxes for a given action. Only on actual iPhone build, no indication for app build on simulator. Does not appear for any set of input boxes when they have just been added (i.e. third set added).
+_WAITING_-Download and sidebar button logos not centered in iOS button outlines.
 
 
 **Features to add**
@@ -76,3 +78,9 @@ _PARTIAL_ -Sleep section (tracking previous sign in, maybe use push notification
 - Tansition to inputs/outputs structure?
 IMPLEMENTED- Added note to top of gym sessions to track any extra info / distinguish between dates if more than one on a given day.
 -Exercise names not linked to the ExerciseList table in backend for gym stack, so if I change the name in the ExerciseList, then specific exercises from the frontend will not reflect that change and will not be linked to the new exercise name even though they refer to the same exercise. Potentially want to link in backend, but then need a way to retroactively update all previous gym exercise entries so that they connect to the ExerciseList also.
+
+**API dependencies**
+
+-OpenAI API for chainRunner inference + embedding generation
+-Supabase API for backend
+-Unstructured API for PDF processing

@@ -57,6 +57,19 @@ export default function PhysicalLayout() {
         }}
       />
       <Stack.Screen
+        name="trainingLoad/session"
+        options={{
+          title: 'Training Session',
+          headerStyle: {
+            backgroundColor: '#000',
+          },
+          headerTintColor: '#ffffff',
+          headerTitleStyle: {
+            fontWeight: 'bold',
+          },
+        }}
+      />
+      <Stack.Screen
         name="nutrition/index"
         options={{
           title: 'Nutrition',

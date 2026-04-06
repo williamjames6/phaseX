@@ -178,7 +178,6 @@ export default function LoginScreen() {
         }
         return;
       }
-      console.log(authResult);
 
       const callbackUrl = authResult.url;
       const hash = callbackUrl.split('#')[1];

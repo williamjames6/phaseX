@@ -1,4 +1,4 @@
-import { normalizeBase64, parsePDFContent } from './parsePDFContent';
+import { normalizeBase64 } from './parsePDFContent';
 
 export type GmailMessagePart = {
   mimeType?: string;
@@ -71,11 +71,17 @@ export async function processAttachments(
       if (options?.parsePdfText) {
         try {
           extractedText = await options.parsePdfText(pdfBase64, fileNameToUse);
-        } catch {
-          extractedText = JSON.parse(parsePDFContent(pdfBase64, fileNameToUse)).data;
+        } catch (error) {
+          console.warn(
+            `[processAttachments] Supabase edge function parser unavailable for ${fileNameToUse}. ${error}`
+          );
+          throw new Error('Supabase edge function parser is currently not working');
         }
       } else {
-        extractedText = JSON.parse(parsePDFContent(pdfBase64, fileNameToUse)).data;
+        console.warn(
+          `[processAttachments] Supabase edge function parser is not configured for ${fileNameToUse}.`
+        );
+        throw new Error('Supabase edge function parser is not configured');
       }
 
       attachments.push({

@@ -1,69 +1,134 @@
-import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-
-interface TrainingData {
-  id: number;
-  subject: string;
-  date: string;
-  attachments: {
-    filename: string;
-    parsedContent: {
-      text: string;
-      numPages: number;
-    };
-  }[];
-}
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useRef, useState } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import SidebarModal from '../../../components/SidebarModal';
+import { useHeaderWithMenu } from '../../../hooks/useHeaderWithMenu';
+import { supabase } from '../../../lib/supabase';
 
 export default function TrainingLoadIndex() {
-  const [trainingData, setTrainingData] = useState<TrainingData[]>([]);
+  const [isSidebarVisible, setIsSidebarVisible] = useState(false);
+  const [trainingDates, setTrainingDates] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const offsetRef = useRef(0);
+  const limit = 20;
 
-  useEffect(() => {
-    fetchTrainingData();
-  }, []);
+  useHeaderWithMenu({
+    title: 'Training Load',
+    onMenuPress: () => setIsSidebarVisible(true),
+  });
 
-  const fetchTrainingData = async () => {
+  const loadTrainingDates = useCallback(async (isLoadMore = false) => {
     try {
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        setTrainingDates([]);
+        setHasMore(false);
+        return;
+      }
+
+      const currentOffset = isLoadMore ? offsetRef.current : 0;
+      if (!isLoadMore) {
+        setLoading(true);
+        offsetRef.current = 0;
+      } else {
+        setLoadingMore(true);
+      }
+
+      const { data, error } = await supabase
+        .from('TrainingLoad')
+        .select('date')
+        .eq('user_id', user.id)
+        .order('date', { ascending: false })
+        .range(currentOffset, currentOffset + limit - 1);
+
+      if (error) {
+        console.error('Error fetching training load dates:', error);
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        setHasMore(false);
+        if (!isLoadMore) {
+          setTrainingDates([]);
+        }
+      } else {
+        const dates = data
+          .map((row) => row.date)
+          .filter((date): date is string => Boolean(date));
+
+        if (isLoadMore) {
+          setTrainingDates((prev) => [...prev, ...dates]);
+        } else {
+          setTrainingDates(dates);
+        }
+
+        setHasMore(data.length === limit);
+        offsetRef.current = isLoadMore ? offsetRef.current + limit : limit;
+      }
+    } catch (error) {
+      console.error('Error loading training load dates:', error);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
+  }, []);
+
+  const loadMoreDates = async () => {
+    if (loadingMore || !hasMore) {
+      return;
+    }
+    await loadTrainingDates(true);
   };
 
-  if (loading) {
-    return (
-      <View style={styles.container}>
-        <Text>Loading training data...</Text>
-      </View>
-    );
-  }
+  useFocusEffect(
+    useCallback(() => {
+      loadTrainingDates();
+    }, [loadTrainingDates])
+  );
 
-  if (error) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>Error: {error}</Text>
-      </View>
-    );
-  }
+  const handleDatePress = (date: string) => {
+    router.push(`/physical-stack/trainingLoad/session?date=${date}`);
+  };
 
   return (
     <View style={styles.container}>
-      {trainingData.map((training) => (
-        <View key={training.id} style={styles.trainingCard}>
-          <Text style={styles.subject}>{training.subject}</Text>
-          <Text style={styles.date}>{new Date(training.date).toLocaleDateString()}</Text>
-          {training.attachments.map((attachment, index) => (
-            <View key={index} style={styles.attachment}>
-              <Text style={styles.filename}>{attachment.filename}</Text>
-              <Text style={styles.content} numberOfLines={3}>
-                {attachment.parsedContent.text}
-              </Text>
-            </View>
-          ))}
-        </View>
-      ))}
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        {loading ? (
+          <Text style={styles.loadingText}>Loading dates...</Text>
+        ) : trainingDates.length > 0 ? (
+          <View style={styles.datesContainer}>
+            {trainingDates.map((date) => (
+              <TouchableOpacity
+                key={date}
+                style={styles.dateButton}
+                onPress={() => handleDatePress(date)}
+              >
+                <Text style={styles.dateButtonText}>{date}</Text>
+              </TouchableOpacity>
+            ))}
+
+            {hasMore && (
+              <TouchableOpacity
+                style={styles.loadMoreButton}
+                onPress={loadMoreDates}
+                disabled={loadingMore}
+              >
+                <Text style={styles.loadMoreButtonText}>
+                  {loadingMore ? 'Loading...' : 'Load More'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        ) : (
+          <Text style={styles.noDatesText}>No training load entries yet.</Text>
+        )}
+      </ScrollView>
+
+      <SidebarModal visible={isSidebarVisible} onClose={() => setIsSidebarVisible(false)} />
     </View>
   );
 }
@@ -71,47 +136,57 @@ export default function TrainingLoadIndex() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: 'black',
   },
-  trainingCard: {
-    backgroundColor: 'white',
+  scrollView: {
+    flex: 1,
+    padding: 20,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  datesContainer: {
+    marginBottom: 30,
+  },
+  dateButton: {
+    backgroundColor: '#1a1a1a',
+    padding: 15,
     borderRadius: 8,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#333',
   },
-  subject: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 8,
+  dateButtonText: {
+    color: '#e5e5e5',
+    fontSize: 16,
+    fontWeight: '500',
   },
-  date: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 12,
-  },
-  attachment: {
-    marginTop: 12,
-    padding: 12,
-    backgroundColor: '#f8f8f8',
-    borderRadius: 6,
-  },
-  filename: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  content: {
-    fontSize: 14,
-    color: '#444',
-  },
-  errorText: {
-    color: 'red',
+  loadingText: {
     textAlign: 'center',
+    fontSize: 16,
+    color: '#999',
+    marginTop: 40,
   },
-}); 
+  noDatesText: {
+    textAlign: 'center',
+    fontSize: 16,
+    color: '#999',
+    marginTop: 40,
+    fontStyle: 'italic',
+  },
+  loadMoreButton: {
+    backgroundColor: '#FF6B35',
+    padding: 15,
+    borderRadius: 8,
+    width: '100%',
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  loadMoreButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+});

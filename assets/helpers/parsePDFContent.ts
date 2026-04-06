@@ -52,7 +52,15 @@ function decodePdfLiteralBytes(bytes: number[]): string {
     }
     return utf16Text;
   }
-  return String.fromCharCode(...bytes);
+
+  // Avoid stack overflow on very large arrays by chunking conversions.
+  let output = '';
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.slice(i, i + chunkSize);
+    output += String.fromCharCode(...chunk);
+  }
+  return output;
 }
 
 function parseLiteralString(binary: string, startIndex: number): { text: string; nextIndex: number } {
