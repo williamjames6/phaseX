@@ -10,6 +10,11 @@ import { supabase } from '../lib/supabase';
 
 WebBrowser.maybeCompleteAuthSession();
 
+const DEV_BYPASS_ENABLED =
+  __DEV__ && process.env.EXPO_PUBLIC_DEV_BYPASS_AUTH === 'true';
+const DEV_BYPASS_EMAIL = process.env.EXPO_PUBLIC_DEV_BYPASS_EMAIL;
+const DEV_BYPASS_PASSWORD = process.env.EXPO_PUBLIC_DEV_BYPASS_PASSWORD;
+
 export default function LoginScreen() {
   const [isSigningIn, setIsSigningIn] = useState(false);
   const isMountedRef = useRef(true);
@@ -74,7 +79,40 @@ export default function LoginScreen() {
     const fetchSession = async () => {
       // Check if component is still mounted before proceeding
       if (!isMountedRef.current) return;
-      
+
+      if (DEV_BYPASS_ENABLED) {
+        try {
+          if (!DEV_BYPASS_EMAIL || !DEV_BYPASS_PASSWORD) {
+            console.warn(
+              'DEV_BYPASS enabled but EXPO_PUBLIC_DEV_BYPASS_EMAIL/PASSWORD are missing.'
+            );
+            return;
+          }
+
+          const { data: activeSession } = await supabase.auth.getSession();
+          if (!activeSession?.session) {
+            const { error: bypassError } = await supabase.auth.signInWithPassword({
+              email: DEV_BYPASS_EMAIL,
+              password: DEV_BYPASS_PASSWORD,
+            });
+
+            if (bypassError) {
+              console.error('Dev bypass sign-in failed:', bypassError.message);
+              return;
+            }
+          }
+
+          if (isMountedRef.current) {
+            console.log('Dev bypass active: routing directly to /home');
+            router.replace('/home');
+          }
+          return;
+        } catch (error) {
+          console.error('Dev bypass login failed:', error);
+          return;
+        }
+      }
+
       const {data} = await supabase.auth.getSession();
       if (data?.session && isMountedRef.current) {
         console.log("appState is active and session is active");

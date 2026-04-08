@@ -378,6 +378,7 @@ export default function HomeScreen() {
     }
   }, []);
 
+  //Gather all training load data since last log-in
   useEffect(() => {
     if (hasFetchedLatestEmailRef.current) {
       return;

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import React, { useLayoutEffect } from 'react';
-import { TouchableOpacity } from 'react-native';
+import { Pressable } from 'react-native';
 
 interface UseHeaderWithMenuProps {
   title: string;
@@ -16,19 +16,31 @@ export function useHeaderWithMenu({ title, onMenuPress, headerRight }: UseHeader
     navigation.setOptions({
       title,
       headerLeft: () => (
-        <TouchableOpacity 
+        <Pressable
           onPress={onMenuPress} 
           style={{ 
             padding: 8, 
             marginLeft: 8,
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            backgroundColor: 'transparent',
+            borderWidth: 0,
+            shadowOpacity: 0,
+            elevation: 0,
           }}
+          hitSlop={8}
+          android_ripple={undefined}
         >
           <Ionicons name="menu" size={24} color="#ffffff" />
-        </TouchableOpacity>
+        </Pressable>
       ),
-      headerRight: headerRight,
+      headerRight: headerRight ?? undefined,
+      headerLeftContainerStyle: {
+        backgroundColor: 'transparent',
+      },
+      headerRightContainerStyle: {
+        backgroundColor: 'transparent',
+      },
       headerStyle: {
         backgroundColor: '#000',
       },

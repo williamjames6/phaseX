@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, usePathname } from 'expo-router';
-import { Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { Alert, FlatList, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 
 interface SidebarModalProps {
@@ -8,8 +9,36 @@ interface SidebarModalProps {
   onClose: () => void;
 }
 
+const INITIAL_DAY_COUNT = 30;
+const LOAD_MORE_DAY_COUNT = 10;
+
+function toIsoDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function buildDateBatch(startOffset: number, count: number): string[] {
+  const base = new Date();
+  base.setHours(0, 0, 0, 0);
+  const dates: string[] = [];
+
+  for (let i = 0; i < count; i += 1) {
+    const date = new Date(base);
+    date.setDate(base.getDate() - (startOffset + i));
+    dates.push(toIsoDate(date));
+  }
+
+  return dates;
+}
+
 export default function SidebarModal({ visible, onClose }: SidebarModalProps) {
   const pathName = usePathname();
+  const [dateButtons, setDateButtons] = useState<string[]>(() =>
+    buildDateBatch(0, INITIAL_DAY_COUNT)
+  );
+  const [loadedDayCount, setLoadedDayCount] = useState(INITIAL_DAY_COUNT);
 
   const handleLogout = async () => {
     try {
@@ -35,6 +64,16 @@ export default function SidebarModal({ visible, onClose }: SidebarModalProps) {
     }
   };
 
+  const handleDatePress = (isoDate: string) => {
+    handleNavigation(`/daily-stack?date=${isoDate}`);
+  };
+
+  const loadMoreDays = useCallback(() => {
+    const nextBatch = buildDateBatch(loadedDayCount, LOAD_MORE_DAY_COUNT);
+    setDateButtons((prev) => [...prev, ...nextBatch]);
+    setLoadedDayCount((prev) => prev + LOAD_MORE_DAY_COUNT);
+  }, [loadedDayCount]);
+
   return (
     <Modal
       visible={visible}
@@ -45,40 +84,36 @@ export default function SidebarModal({ visible, onClose }: SidebarModalProps) {
       <View style={styles.modalOverlay}>
         <TouchableOpacity style={styles.closeArea} onPress={onClose} activeOpacity={1}>
           <View style={styles.menuContainer}>
-            <View style={styles.menuItemContainer}>
-              <TouchableOpacity 
-                style={styles.menuItem}
-                onPress={() => handleNavigation('/home')}
-              >
-                <Ionicons name="home" size={24} color="yellow" />
-                <Text style={styles.menuText}>Home</Text>
-              </TouchableOpacity>
+            <View style={styles.dayListContainer}>
+              <FlatList
+                data={dateButtons}
+                horizontal
+                inverted
+                keyExtractor={(item) => item}
+                showsHorizontalScrollIndicator={false}
+                onEndReachedThreshold={0.9}
+                onEndReached={loadMoreDays}
+                contentContainerStyle={styles.dayListContent}
+                renderItem={({ item }) => {
+                  const dayNumber = String(Number(item.split('-')[2]));
+                  return (
+                    <TouchableOpacity
+                      style={styles.dayButton}
+                      onPress={() => handleDatePress(item)}
+                    >
+                      <Text style={styles.dayButtonText}>{dayNumber}</Text>
+                    </TouchableOpacity>
+                  );
+                }}
+              />
             </View>
 
-            <View style={styles.menuItemContainer}>
-              <TouchableOpacity 
-                style={styles.menuItem}
-                onPress={() => handleNavigation('/physical-stack')}
-              >
-                <Ionicons name="fitness" size={24} color="yellow" />
-                <Text style={styles.menuText}>Physical</Text>
+            <View style={styles.logoutContainer}>
+              <TouchableOpacity style={styles.homeButton} onPress={() => handleNavigation('/home')}>
+                <Ionicons name="home" size={22} color="yellow" />
               </TouchableOpacity>
-            </View>
-
-            <View style={styles.menuItemContainer}>
-              <TouchableOpacity 
-                style={styles.menuItem}
-                onPress={() => handleNavigation('/journal-stack')}
-              >
-                <Ionicons name="book" size={24} color="yellow" />
-                <Text style={styles.menuText}>Journal</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.menuItemContainer}>
               <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
                 <Ionicons name="log-out" size={20} color="#fff" />
-                <Text style={styles.logoutText}>Logout</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -99,23 +134,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   menuContainer: {
+    flex: 1,
+    width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 40,
+    paddingHorizontal: 20,
   },
   menuItemContainer: {
     width: '100%',
     alignItems: 'center',
   },
-  menuItem: {
+  dayListContainer: {
+    width: '100%',
+    marginBottom: 20,
+  },
+  dayListContent: {
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  dayButton: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 20,
-    paddingHorizontal: 40,
-    marginBottom: 20,
-    borderRadius: 16,
-    minWidth: 200,
+    marginHorizontal: 6,
     backgroundColor: 'rgba(0, 0, 0, 0.9)',
     borderWidth: 1,
     borderColor: 'yellow',
@@ -128,22 +172,27 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
   },
-  menuText: {
-    fontSize: 20,
+  dayButtonText: {
+    fontSize: 22,
     fontWeight: '600',
     color: 'yellow',
-    marginLeft: 16,
   },
-  logoutButton: {
-    flexDirection: 'row',
+  logoutContainer: {
+    position: 'absolute',
+    bottom: 50,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#dc3545',
-    paddingVertical: 20,
-    paddingHorizontal: 40,
-    borderRadius: 16,
-    minWidth: 200,
-    marginTop: 10,
+  },
+  homeButton: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#000',
+    borderWidth: 2,
+    borderColor: 'yellow',
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -153,10 +202,22 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
   },
-  logoutText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '600',
-    marginLeft: 8,
+  logoutButton: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#000',
+    borderWidth: 2,
+    borderColor: '#dc3545',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
 });
