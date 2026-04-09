@@ -11,25 +11,13 @@ export default function Layout() {
         }} 
       />
       <Stack.Screen 
-        name="register" 
+        name="registration/register" 
         options={{ 
           headerShown: false 
         }} 
       />
       <Stack.Screen 
         name="home" 
-        options={{ 
-          headerShown: false 
-        }} 
-      />
-      <Stack.Screen 
-        name="physical-stack" 
-        options={{ 
-          headerShown: false 
-        }} 
-      />
-      <Stack.Screen 
-        name="journal-stack" 
         options={{ 
           headerShown: false 
         }} 

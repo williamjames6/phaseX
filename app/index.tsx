@@ -177,6 +177,9 @@ export default function LoginScreen() {
     console.log('Master session created successfully');
   };
 
+  const handleRegister = async () => {
+    router.replace(`/registration/register`);
+  }
   const handleGoogleLogin = async () => {
     if (isSigningIn) {
       return;
@@ -302,6 +305,13 @@ export default function LoginScreen() {
           >
             <Text style={styles.loginButtonText}>
               {isSigningIn ? 'Connecting to Google...' : 'Begin Google Deflowering Process'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleRegister}
+          >
+            <Text style={{color: "white"}}>
+              Register
             </Text>
           </TouchableOpacity>
         </Animated.View>

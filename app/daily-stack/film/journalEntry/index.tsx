@@ -7,8 +7,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Dimensions, Image, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
-import { timeSwitch } from '../../../assets/helpers/timeSwitch';
-import { supabase } from '../../../lib/supabase';
+import { timeSwitch } from '../../../../assets/helpers/timeSwitch';
+import { supabase } from '../../../../lib/supabase';
 
 interface Action {
   id: number;
@@ -439,7 +439,7 @@ export default function JournalEntryIndex() {
   const handleSketchAction = (action: Action) => {
     // Navigate to sketchpad for this action
     router.push({
-      pathname: '/journal-stack/journalEntry/sketchpad/new',
+      pathname: '/daily-stack/film/journalEntry/sketchpad/new',
       params: {
         actionId: action.id.toString(), // Use local ID for navigation
         sessionId: sessionId as string,
@@ -817,7 +817,7 @@ export default function JournalEntryIndex() {
                     onPress={() => handleSketchAction(action)}
                   >
                     <Image
-                      source={require('../../../assets/images/onwards.png')}
+                      source={require('../../../../assets/images/onwards.png')}
                       style={styles.sketchButtonIcon}
                     />
                   </TouchableOpacity>
@@ -826,7 +826,7 @@ export default function JournalEntryIndex() {
                   onPress={() => handleDeleteAction(action)}
                   >
                   <Image
-                    source={require('../../../assets/images/pinkTrash.png')}
+                    source={require('../../../../assets/images/pinkTrash.png')}
                     style={styles.deleteButtonIcon}
                   />
                   </TouchableOpacity>

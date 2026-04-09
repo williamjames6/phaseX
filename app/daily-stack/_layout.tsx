@@ -21,6 +21,36 @@ export default function DailyStackLayout() {
           title: 'Daily',
         }}
       />
+      <Stack.Screen
+        name="sleep/entry"
+        options={{
+          title: 'Sleep',
+        }}
+      />
+      <Stack.Screen
+        name="trainingLoad/session"
+        options={{
+          title: 'Training',
+        }}
+      />
+      <Stack.Screen
+        name="gym/session"
+        options={{
+          title: 'Gym',
+        }}
+      />
+      <Stack.Screen
+        name="film/journalEntry/index"
+        options={{
+          title: 'Film',
+        }}
+      />
+      <Stack.Screen
+        name="film/journalEntry/sketchpad/new"
+        options={{
+          title: 'Sketch',
+        }}
+      />
     </Stack>
   );
 }

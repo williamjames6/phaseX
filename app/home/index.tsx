@@ -461,15 +461,67 @@ export default function HomeScreen() {
         };
       };
       
-      //Add night entry to Sleep table in backend
-      const {data: night, error: error2} = await supabase
-      .from("Sleep")
-      .insert({
-        date: dateFormatter(currentTime),
-        user_id: authenticatedUserId
-      })
-      
-      if (error2) throw error2;
+      const todayDate = dateFormatter(currentTime);
+
+      // Find the user's most recent sleep row, then backfill every missing date up to today.
+      const { data: latestSleepRow, error: latestSleepError } = await supabase
+        .from("Sleep")
+        .select("date")
+        .eq("user_id", authenticatedUserId)
+        .not("date", "is", null)
+        .order("date", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (latestSleepError) throw latestSleepError;
+
+      const candidateRows: { date: string; user_id: string }[] = [];
+
+      if (latestSleepRow?.date) {
+        const lastSleepDate = new Date(`${latestSleepRow.date}T12:00:00`);
+        const currentDate = new Date(`${todayDate}T12:00:00`);
+        const cursor = new Date(lastSleepDate);
+        cursor.setDate(cursor.getDate() + 1);
+
+        while (cursor.getTime() <= currentDate.getTime()) {
+          candidateRows.push({
+            date: dateFormatter(cursor),
+            user_id: authenticatedUserId,
+          });
+          cursor.setDate(cursor.getDate() + 1);
+        }
+      } else {
+        // No previous sleep data; create today's placeholder row.
+        candidateRows.push({
+          date: todayDate,
+          user_id: authenticatedUserId,
+        });
+      }
+
+      if (candidateRows.length > 0) {
+        const firstDate = candidateRows[0].date;
+        const lastDate = candidateRows[candidateRows.length - 1].date;
+
+        const { data: existingRows, error: existingRowsError } = await supabase
+          .from("Sleep")
+          .select("date")
+          .eq("user_id", authenticatedUserId)
+          .gte("date", firstDate)
+          .lte("date", lastDate);
+
+        if (existingRowsError) throw existingRowsError;
+
+        const existingDates = new Set((existingRows ?? []).map((row) => row.date));
+        const rowsToInsert = candidateRows.filter((row) => !existingDates.has(row.date));
+
+        if (rowsToInsert.length > 0) {
+          const { error: insertSleepError } = await supabase
+            .from("Sleep")
+            .insert(rowsToInsert);
+
+          if (insertSleepError) throw insertSleepError;
+        }
+      }
         
       //Update previous_sign_in value for currently signed in user
       const {data: finalData, error: finalError} = await supabase
@@ -841,7 +893,7 @@ export default function HomeScreen() {
                   style={[styles.modalButton, styles.createButton]}
                   onPress={() => {
                     const currentTime = new Date();
-                    router.push(`/physical-stack/sleep/entry?date=${dateFormatter(currentTime)}`);
+                    router.push(`/daily-stack/sleep/entry?date=${dateFormatter(currentTime)}`);
                     setShowSleepModal(false);
                   }}
                 >
