@@ -1,7 +1,7 @@
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, Keyboard, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { Alert, Keyboard, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { supabase } from '../../../lib/supabase';
 
 interface SleepData {
@@ -13,6 +13,7 @@ interface SleepData {
   disruptions: string | null;
   subjective_quality: number | null;
   arousal: string | null;
+  note?: string | null;
 }
 
 export default function SleepEntry() {
@@ -25,6 +26,7 @@ export default function SleepEntry() {
     disruptions: null,
     subjective_quality: null,
     arousal: null,
+    note: '',
   });
   const [loading, setLoading] = useState(true);
   const [showTimeToSleepModal, setShowTimeToSleepModal] = useState(false);
@@ -185,21 +187,20 @@ export default function SleepEntry() {
         disruptions: dataToSave.disruptions,
         subjective_quality: dataToSave.subjective_quality,
         arousal: dataToSave.arousal,
+        note: dataToSave.note || null,
         user_id: user.id,
         date: date,
       };
 
-      if (sleepData.id) {
-        // Update existing record
+      if (dataToSave.id) {
         const { error } = await supabase
           .from('Sleep')
           .update(sleepRecord)
-          .eq('id', sleepData.id)
+          .eq('id', dataToSave.id)
           .eq('user_id', user.id);
 
         if (error) throw error;
       } else {
-        // Insert new record
         const { data, error } = await supabase
           .from('Sleep')
           .insert([sleepRecord])
@@ -229,6 +230,23 @@ export default function SleepEntry() {
     <View style={styles.container}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         <Text style={styles.dateText}>{date}</Text>
+
+        <TextInput
+          style={styles.noteInput}
+          placeholder="Add a note..."
+          placeholderTextColor="#999"
+          multiline={true}
+          scrollEnabled={false}
+          value={sleepData.note ?? ''}
+          onChangeText={(text) => setSleepData((prev) => ({ ...prev, note: text }))}
+          onBlur={() => {
+            setSleepData((prev) => {
+              void saveSleepData(prev);
+              return prev;
+            });
+          }}
+          textAlignVertical="top"
+        />
 
         {/* Sleep Start Time */}
         <View style={styles.inputContainer}>
@@ -535,8 +553,22 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 30,
+    marginBottom: 16,
     textAlign: 'center',
+  },
+  noteInput: {
+    width: '100%',
+    minHeight: 100,
+    borderWidth: 1,
+    borderColor: '#333',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 16,
+    backgroundColor: '#1a1a1a',
+    color: '#e5e5e5',
+    fontSize: 16,
+    textAlignVertical: 'top',
   },
   loadingText: {
     color: 'white',

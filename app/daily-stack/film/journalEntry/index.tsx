@@ -46,6 +46,7 @@ export default function JournalEntryIndex() {
   const [playerList, setPlayerList] = useState<Set<string>>(new Set());
   const [typingPlayer, setTypingPlayer] = useState<string | null>(null);
   const [validTimestamps, setValidTimestamps] = useState<string[]>([]);
+  const [sessionNote, setSessionNote] = useState('');
   let actionAdder = 0;
 
 
@@ -72,6 +73,39 @@ export default function JournalEntryIndex() {
     if (!sessionId) return;
 
     try {
+      let sessionData: { physical_score?: number | null; mental_score?: number | null; overall_score?: number | null } | null = null;
+
+      if (sessionType === "note") {
+        setSessionNote('');
+      } else {
+        const fsColumns =
+          sessionType === 'training' || sessionType === 'game'
+            ? 'physical_score, mental_score, overall_score, note'
+            : 'note';
+
+        const { data: fsMeta, error: fsMetaError } = await supabase
+          .from('FieldSessions')
+          .select(fsColumns)
+          .eq('id', sessionId)
+          .maybeSingle();
+
+        if (fsMetaError) {
+          console.error('Error loading field session:', fsMetaError);
+          setSessionNote('');
+        } else if (fsMeta) {
+          setSessionNote((fsMeta as { note?: string | null }).note ?? '');
+          if (sessionType === 'training' || sessionType === 'game') {
+            sessionData = {
+              physical_score: (fsMeta as { physical_score?: number | null }).physical_score,
+              mental_score: (fsMeta as { mental_score?: number | null }).mental_score,
+              overall_score: (fsMeta as { overall_score?: number | null }).overall_score,
+            };
+          }
+        } else {
+          setSessionNote('');
+        }
+      }
+
       // Handle note type sessions differently
       if (sessionType === "note") {
         const { data, error } = await supabase
@@ -108,21 +142,6 @@ export default function JournalEntryIndex() {
         setActions(existingActions);
         setNextId(Math.abs(existingActions.length) + 1);
       } else if (sessionType !== "note") {
-        let sessionData: { physical_score?: number | null; mental_score?: number | null; overall_score?: number | null } | null = null;
-
-        if (sessionType === "training" || sessionType === "game") {
-          const { data: trainingSessionData, error: sessionError } = await supabase
-            .from('FieldSessions')
-            .select('physical_score, mental_score, overall_score')
-            .eq('id', sessionId)
-            .single();
-          if (sessionError) {
-            console.error('Error loading training session:', sessionError);
-          } else {
-            sessionData = trainingSessionData;
-          }
-        }
-
         const { data, error } = await supabase
           .from('FieldActions')
           .select('id, time_stamp_seconds, description, sketch_id')
@@ -558,6 +577,23 @@ export default function JournalEntryIndex() {
     }
   };
 
+  const saveFieldSessionNote = async (noteText: string) => {
+    if (!sessionId) return;
+
+    try {
+      const { error } = await supabase
+        .from('FieldSessions')
+        .update({ note: noteText || null })
+        .eq('id', sessionId);
+
+      if (error) {
+        console.error('Error saving session note:', error);
+      }
+    } catch (error) {
+      console.error('Error saving session note:', error);
+    }
+  };
+
   const scrollToTextInput = (actionId: number) => {
     // Find the index of the action in the actions array
     const actionIndex = actions.findIndex(action => action.id === actionId);
@@ -705,27 +741,26 @@ export default function JournalEntryIndex() {
         contentContainerStyle={styles.scrollContent}
         automaticallyAdjustKeyboardInsets={true}
       >
-        {actions.map((action, index) => (
-          <View key={action.id} style={styles.actionContainer}>
-            {sessionType !== "other" && index === 0 ? (
+        {(sessionType === "training" || sessionType === "game") && actions[0] ? (
+          <>
+            <View key={actions[0].id} style={styles.actionContainer}>
               <View style={styles.trainingInputsRow}>
                 <View style={styles.trainingInputContainer}>
                   <Text style={styles.trainingInputLabel}>Physical</Text>
                   <TextInput
                     style={styles.trainingInputCircle}
                     placeholder=""
-                    value={action.physical_score?.toString() || ''}
+                    value={actions[0].physical_score?.toString() || ''}
                     onChangeText={(value) => {
-                      // Only allow single digits 1-10
                       if (value === '' || (value.length === 1 && /^[1-9]$/.test(value)) || (value.length === 2 && value === '10')) {
-                        updateAction(action.id, 'physical_score', value);
+                        updateAction(actions[0].id, 'physical_score', value);
                       }
                     }}
                     placeholderTextColor="#999"
                     keyboardType="numeric"
                     maxLength={2}
                     textAlign="center"
-                    onBlur={() => handleSaveTrainingScores(action)}
+                    onBlur={() => handleSaveTrainingScores(actions[0])}
                   />
                 </View>
                 <View style={styles.trainingInputContainer}>
@@ -733,18 +768,17 @@ export default function JournalEntryIndex() {
                   <TextInput
                     style={styles.trainingInputCircle}
                     placeholder=""
-                    value={action.mental_score?.toString() || ''}
+                    value={actions[0].mental_score?.toString() || ''}
                     onChangeText={(value) => {
-                      // Only allow single digits 1-10
                       if (value === '' || (value.length === 1 && /^[1-9]$/.test(value)) || (value.length === 2 && value === '10')) {
-                        updateAction(action.id, 'mental_score', value);
+                        updateAction(actions[0].id, 'mental_score', value);
                       }
                     }}
                     placeholderTextColor="#999"
                     keyboardType="numeric"
                     maxLength={2}
                     textAlign="center"
-                    onBlur={() => handleSaveTrainingScores(action)}
+                    onBlur={() => handleSaveTrainingScores(actions[0])}
                   />
                 </View>
                 <View style={styles.trainingInputContainer}>
@@ -752,89 +786,184 @@ export default function JournalEntryIndex() {
                   <TextInput
                     style={styles.trainingInputCircle}
                     placeholder=""
-                    value={action.overall_score?.toString() || ''}
+                    value={actions[0].overall_score?.toString() || ''}
                     onChangeText={(value) => {
-                      // Only allow single digits 1-10
                       if (value === '' || (value.length === 1 && /^[1-9]$/.test(value)) || (value.length === 2 && value === '10')) {
-                        updateAction(action.id, 'overall_score', value);
+                        updateAction(actions[0].id, 'overall_score', value);
                       }
                     }}
                     placeholderTextColor="#999"
                     keyboardType="numeric"
                     maxLength={2}
                     textAlign="center"
-                    onBlur={() => handleSaveTrainingScores(action)}
+                    onBlur={() => handleSaveTrainingScores(actions[0])}
                   />
                 </View>
               </View>
-            ) : (
-              <View style={styles.inputsRow}>
-                <TouchableOpacity
-                  style={styles.timestampInput}
-                  onPress={() => openPickerForAction(action)}
-                >
-                  <Text style={[styles.timestampText, !action.timestamp && styles.timestampPlaceholder]}>
-                    {action.timestamp || '00:00'}
-                  </Text>
-                </TouchableOpacity>
-                <TextInput
-                  style={styles.descriptionInput}
-                  placeholder="Description of action..."
-                  value={action.description}
-                  onChangeText={(value) => updateAction(action.id, 'description', value)}
-                  placeholderTextColor="#999"
-                  multiline={true}
-                  onFocus={() => {
-                    updateValidTimestamps(action.id);
-                  }}
-                  onBlur={async () => {
-                    if (typingPlayer !== null && typingPlayer !== '') {
-                      addNewPlayer(typingPlayer);
-                      setTypingPlayer(null);
-                    }
-                    // Parse time mentions and update backend
-                    const timeMentionsArray = parseTimeMentions(action.description);
-                    try {
-                      const { error } = await supabase
-                        .from('FieldActions')
-                        .update({ time_mentions: timeMentionsArray })
-                        .eq('id', action.dbId);
-                      if (error) {
+            </View>
+            <TextInput
+              style={styles.noteInput}
+              placeholder="Add a note..."
+              placeholderTextColor="#999"
+              multiline={true}
+              scrollEnabled={false}
+              value={sessionNote}
+              onChangeText={setSessionNote}
+              onBlur={() => saveFieldSessionNote(sessionNote)}
+              textAlignVertical="top"
+            />
+            {actions.slice(1).map((action) => (
+              <View key={action.id} style={styles.actionContainer}>
+                <View style={styles.inputsRow}>
+                  <TouchableOpacity
+                    style={styles.timestampInput}
+                    onPress={() => openPickerForAction(action)}
+                  >
+                    <Text style={[styles.timestampText, !action.timestamp && styles.timestampPlaceholder]}>
+                      {action.timestamp || '00:00'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TextInput
+                    style={styles.descriptionInput}
+                    placeholder="Description of action..."
+                    value={action.description}
+                    onChangeText={(value) => updateAction(action.id, 'description', value)}
+                    placeholderTextColor="#999"
+                    multiline={true}
+                    onFocus={() => {
+                      updateValidTimestamps(action.id);
+                    }}
+                    onBlur={async () => {
+                      if (typingPlayer !== null && typingPlayer !== '') {
+                        addNewPlayer(typingPlayer);
+                        setTypingPlayer(null);
+                      }
+                      const timeMentionsArray = parseTimeMentions(action.description);
+                      try {
+                        const { error } = await supabase
+                          .from('FieldActions')
+                          .update({ time_mentions: timeMentionsArray })
+                          .eq('id', action.dbId);
+                        if (error) {
+                          console.error('Error updating time mentions:', error);
+                        }
+                      } catch (error) {
                         console.error('Error updating time mentions:', error);
                       }
-                    } catch (error) {
-                      console.error('Error updating time mentions:', error);
-                    }
-                    handleSubmitAction(action);
-                  }}
-                />
-                <View style={styles.buttonColumn}>
-                  <TouchableOpacity 
-                    style={[
-                      styles.sketchButton,
-                      sketchesWithPaths.has(action.sketch_id) && styles.sketchButtonWithPaths
-                    ]}
-                    onPress={() => handleSketchAction(action)}
-                  >
-                    <Image
-                      source={require('../../../../assets/images/onwards.png')}
-                      style={styles.sketchButtonIcon}
-                    />
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                  style={styles.sketchButton}
-                  onPress={() => handleDeleteAction(action)}
-                  >
-                  <Image
-                    source={require('../../../../assets/images/pinkTrash.png')}
-                    style={styles.deleteButtonIcon}
+                      handleSubmitAction(action);
+                    }}
                   />
-                  </TouchableOpacity>
+                  <View style={styles.buttonColumn}>
+                    <TouchableOpacity
+                      style={[
+                        styles.sketchButton,
+                        sketchesWithPaths.has(action.sketch_id) && styles.sketchButtonWithPaths
+                      ]}
+                      onPress={() => handleSketchAction(action)}
+                    >
+                      <Image
+                        source={require('../../../../assets/images/onwards.png')}
+                        style={styles.sketchButtonIcon}
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.sketchButton}
+                      onPress={() => handleDeleteAction(action)}
+                    >
+                      <Image
+                        source={require('../../../../assets/images/pinkTrash.png')}
+                        style={styles.deleteButtonIcon}
+                      />
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
+            ))}
+          </>
+        ) : (
+          <>
+            {sessionType === "other" && (
+              <TextInput
+                style={styles.noteInput}
+                placeholder="Add a note..."
+                placeholderTextColor="#999"
+                multiline={true}
+                scrollEnabled={false}
+                value={sessionNote}
+                onChangeText={setSessionNote}
+                onBlur={() => saveFieldSessionNote(sessionNote)}
+                textAlignVertical="top"
+              />
             )}
-          </View>
-        ))}
+            {actions.map((action) => (
+              <View key={action.id} style={styles.actionContainer}>
+                <View style={styles.inputsRow}>
+                  <TouchableOpacity
+                    style={styles.timestampInput}
+                    onPress={() => openPickerForAction(action)}
+                  >
+                    <Text style={[styles.timestampText, !action.timestamp && styles.timestampPlaceholder]}>
+                      {action.timestamp || '00:00'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TextInput
+                    style={styles.descriptionInput}
+                    placeholder="Description of action..."
+                    value={action.description}
+                    onChangeText={(value) => updateAction(action.id, 'description', value)}
+                    placeholderTextColor="#999"
+                    multiline={true}
+                    onFocus={() => {
+                      updateValidTimestamps(action.id);
+                    }}
+                    onBlur={async () => {
+                      if (typingPlayer !== null && typingPlayer !== '') {
+                        addNewPlayer(typingPlayer);
+                        setTypingPlayer(null);
+                      }
+                      const timeMentionsArray = parseTimeMentions(action.description);
+                      try {
+                        const { error } = await supabase
+                          .from('FieldActions')
+                          .update({ time_mentions: timeMentionsArray })
+                          .eq('id', action.dbId);
+                        if (error) {
+                          console.error('Error updating time mentions:', error);
+                        }
+                      } catch (error) {
+                        console.error('Error updating time mentions:', error);
+                      }
+                      handleSubmitAction(action);
+                    }}
+                  />
+                  <View style={styles.buttonColumn}>
+                    <TouchableOpacity
+                      style={[
+                        styles.sketchButton,
+                        sketchesWithPaths.has(action.sketch_id) && styles.sketchButtonWithPaths
+                      ]}
+                      onPress={() => handleSketchAction(action)}
+                    >
+                      <Image
+                        source={require('../../../../assets/images/onwards.png')}
+                        style={styles.sketchButtonIcon}
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.sketchButton}
+                      onPress={() => handleDeleteAction(action)}
+                    >
+                      <Image
+                        source={require('../../../../assets/images/pinkTrash.png')}
+                        style={styles.deleteButtonIcon}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            ))}
+          </>
+        )}
       </ScrollView>
       
       {/* </KeyboardAwareScrollView> */}
@@ -1107,6 +1236,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     marginVertical: 10,
+    backgroundColor: '#1a1a1a',
+    color: '#e5e5e5',
+    fontSize: 16,
+    textAlignVertical: 'top',
+  },
+  noteInput: {
+    width: '100%',
+    alignSelf: 'stretch',
+    minHeight: 100,
+    borderWidth: 1,
+    borderColor: '#333',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 16,
     backgroundColor: '#1a1a1a',
     color: '#e5e5e5',
     fontSize: 16,

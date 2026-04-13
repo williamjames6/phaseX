@@ -6,10 +6,12 @@ export interface User {
   created_at: string;
 }
 
-export interface Session {
-  id: number;
-  date: string;
-  type: string;
+/** `GymSessions` table row (distinct name from the gym `GymSession` screen). */
+export interface GymSessionRow {
+  id: string;
+  session_date: string;
+  data: any;
+  note?: string | null;
 }
 
 export interface Action {
@@ -29,6 +31,7 @@ export interface Sketch {
 
 export interface Exercise {
   id: string;
+  exercise_id: string | null;
   exercise_name: string;
   superset_number: number;
   exercise_number: number;

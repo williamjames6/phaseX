@@ -35,6 +35,8 @@ export default function DailyStackIndex() {
   const [filmRows, setFilmRows] = useState<FilmRow[]>([]);
   const [showGymModal, setShowGymModal] = useState(false);
   const [showFilmModal, setShowFilmModal] = useState(false);
+  const [modifyFilmModal, setModifyFilmModal] = useState(false);
+  const [editingFilmSessionId, setEditingFilmSessionId] = useState<string | null>(null);
   const [gymModalDate, setGymModalDate] = useState(new Date());
   const [filmModalDate, setFilmModalDate] = useState(new Date());
   const [filmType, setFilmType] = useState('training');
@@ -280,6 +282,47 @@ export default function DailyStackIndex() {
     }
   };
 
+  const resetFilmModalFields = () => {
+    setFilmModalDate(new Date(`${selectedDate}T12:00:00`));
+    setFilmType('training');
+    setFilmDescription('');
+    setEditingFilmSessionId(null);
+  };
+
+  const handleModifyFilm = async () => {
+    if (!editingFilmSessionId) return;
+
+    try {
+      const dateString = dateFormatter(filmModalDate);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        Alert.alert('Error', 'You must be logged in to modify film sessions');
+        return;
+      }
+
+      const { error } = await supabase
+        .from('FieldSessions')
+        .update({
+          date: dateString,
+          type: filmType,
+          description: filmDescription,
+        })
+        .eq('id', editingFilmSessionId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      setModifyFilmModal(false);
+      resetFilmModalFields();
+      loadDailyData();
+    } catch (error) {
+      console.error('Failed to modify film session:', error);
+      Alert.alert('Error', 'Failed to modify film session');
+    }
+  };
+
   const handleFilmSessionLongPress = async (sessionId: string) => {
     if (!sessionId) {
       Alert.alert('Error', 'No session ID found');
@@ -298,8 +341,41 @@ export default function DailyStackIndex() {
           text: 'Modify',
           style: 'default',
           onPress: async () => {
-            setShowFilmModal(true);
-          }
+            try {
+              const {
+                data: { user },
+              } = await supabase.auth.getUser();
+              if (!user) {
+                Alert.alert('Error', 'You must be logged in to modify sessions');
+                return;
+              }
+
+              const { data, error } = await supabase
+                .from('FieldSessions')
+                .select('type, date, description')
+                .eq('id', sessionId)
+                .eq('user_id', user.id)
+                .single();
+
+              if (error || !data) {
+                console.error('Error loading field session for edit:', error);
+                Alert.alert('Error', 'Failed to load session');
+                return;
+              }
+
+              setFilmType((data.type as string) || 'training');
+              setFilmDescription(typeof data.description === 'string' ? data.description : '');
+              const rowDate = data.date as string | null;
+              if (rowDate && isIsoDate(rowDate)) {
+                setFilmModalDate(new Date(`${rowDate}T12:00:00`));
+              }
+              setEditingFilmSessionId(sessionId);
+              setModifyFilmModal(true);
+            } catch (err) {
+              console.error('Error loading session for modify:', err);
+              Alert.alert('Error', 'Failed to load session');
+            }
+          },
         },
         {
           text: 'Delete',
@@ -413,7 +489,13 @@ export default function DailyStackIndex() {
                 <Text style={styles.buttonText}>Film</Text>
               </TouchableOpacity>
             ))}
-            <TouchableOpacity style={styles.plusButton} onPress={() => setShowFilmModal(true)}>
+            <TouchableOpacity
+              style={styles.plusButton}
+              onPress={() => {
+                resetFilmModalFields();
+                setShowFilmModal(true);
+              }}
+            >
               <Text style={styles.buttonText}>+</Text>
             </TouchableOpacity>
           </View>
@@ -533,8 +615,7 @@ export default function DailyStackIndex() {
                   style={[styles.modalButton, styles.cancelButton]}
                   onPress={() => {
                     setShowFilmModal(false);
-                    setFilmModalDate(new Date(`${selectedDate}T12:00:00`));
-                    setFilmType('training');
+                    resetFilmModalFields();
                   }}
                 >
                   <Text style={styles.cancelButtonText}>Cancel</Text>
@@ -544,6 +625,88 @@ export default function DailyStackIndex() {
                   onPress={handleCreateFilm}
                 >
                   <Text style={styles.createButtonText}>Create</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      <Modal
+        visible={modifyFilmModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          setModifyFilmModal(false);
+          resetFilmModalFields();
+        }}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Modify Session</Text>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Date:</Text>
+                <View style={styles.datePicker}>
+                  <DateTimePicker
+                    value={filmModalDate}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'default' : 'calendar'}
+                    minimumDate={twoYearsAgo}
+                    maximumDate={today}
+                    onChange={(event, value) => {
+                      if (value) setFilmModalDate(value);
+                    }}
+                  />
+                </View>
+              </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Type:</Text>
+                <View style={styles.typeContainer}>
+                  {['training', 'game', 'note', 'other'].map((type) => (
+                    <TouchableOpacity
+                      key={type}
+                      style={[
+                        styles.typeButton,
+                        filmType === type && styles.typeButtonSelected
+                      ]}
+                      onPress={() => setFilmType(type)}
+                    >
+                      <Text style={[
+                        styles.typeButtonText,
+                        filmType === type && styles.typeButtonTextSelected
+                      ]}>
+                        {type.charAt(0).toUpperCase() + type.slice(1)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Description (optional):</Text>
+                <TextInput
+                  style={styles.sessionDescription}
+                  value={filmDescription}
+                  onChangeText={setFilmDescription}
+                  placeholder="e.g. UCL Bayern vs. PSG"
+                  keyboardType="default"
+                />
+              </View>
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.cancelButton]}
+                  onPress={() => {
+                    setModifyFilmModal(false);
+                    resetFilmModalFields();
+                  }}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.createButton]}
+                  onPress={handleModifyFilm}
+                >
+                  <Text style={styles.createButtonText}>Modify</Text>
                 </TouchableOpacity>
               </View>
             </View>

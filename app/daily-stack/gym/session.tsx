@@ -4,19 +4,11 @@ import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, St
 import { v4 as uuidv4 } from 'uuid';
 import { dateFormatter } from '../../../assets/helpers/dateFormatter';
 import { supabase } from '../../../lib/supabase';
-import { Exercise } from '../../../types';
-
-
-interface Session {
-  id: string;
-  session_date: string;
-  data: any; // JSONB data for storing superset information
-  note?: string | null;
-}
+import { Exercise, GymSessionRow } from '../../../types';
 
 export default function GymSession() {
   const { id, sessionDate } = useLocalSearchParams();
-  const [session, setSession] = useState<Session | null>(null);
+  const [session, setSession] = useState<GymSessionRow | null>(null);
   const [supersets, setSupersets] = useState<{ [key: number]: Exercise[] }>({});
   const [loading, setLoading] = useState(true);
   const [currentSuperset, setCurrentSuperset] = useState(1);
@@ -24,7 +16,7 @@ export default function GymSession() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [showExerciseModal, setShowExerciseModal] = useState(false);
   const [currentExerciseId, setCurrentExerciseId] = useState<string | null>(null);
-  const [exercisesList, setExercisesList] = useState<string[]>([]);
+  const [exercisesList, setExercisesList] = useState<{ exercise: string; exercise_id: string }[]>([]);
   const [showAddExercise, setShowAddExercise] = useState(false);
   const [newExerciseName, setNewExerciseName] = useState('');
   const [exerciseSearchQuery, setExerciseSearchQuery] = useState('');
@@ -51,13 +43,17 @@ export default function GymSession() {
     try {
       const { data, error } = await supabase
         .from('GymExercises')
-        .select('exercise')
+        .select('id, exercise')
         .order('exercise', { ascending: true });
 
       if (error) throw error;
-      
-      const exerciseNames = data?.map(item => item.exercise) || [];
-      setExercisesList(exerciseNames);
+
+      const rows =
+        data?.map((item) => ({
+          exercise: item.exercise as string,
+          exercise_id: String(item.id),
+        })) || [];
+      setExercisesList(rows);
     } catch (error) {
       console.error('Error loading exercises:', error);
     }
@@ -77,12 +73,10 @@ export default function GymSession() {
     if (!query) {
       return exercisesList;
     }
-    return exercisesList.filter((exerciseName) =>
-      exerciseName.toLowerCase().includes(query)
-    );
+    return exercisesList.filter((row) => row.exercise.toLowerCase().includes(query));
   }, [exerciseSearchQuery, exercisesList]);
 
-  const handleSelectExercise = async (exerciseName: string) => {
+  const handleSelectExercise = async (exerciseName: string, catalogExerciseId: string) => {
     if (!currentExerciseId) return;
 
     // Find the exercise before updating state
@@ -100,7 +94,11 @@ export default function GymSession() {
     if (!foundExercise || foundSupersetNum === null) return;
 
     // Update the exercise (compute next supersets so we can save before state has committed)
-    const updatedExercise: Exercise = { ...foundExercise as Exercise, exercise_name: exerciseName };
+    const updatedExercise: Exercise = {
+      ...(foundExercise as Exercise),
+      exercise_name: exerciseName,
+      exercise_id: catalogExerciseId,
+    };
     const nextSupersets = { ...supersets };
     nextSupersets[foundSupersetNum] = nextSupersets[foundSupersetNum].map(ex =>
       ex.id === currentExerciseId ? updatedExercise : ex
@@ -122,17 +120,20 @@ export default function GymSession() {
     }
 
     try {
-      const { error } = await supabase
+      const trimmed = newExerciseName.trim();
+      const { data: inserted, error } = await supabase
         .from('GymExercises')
-        .insert([{ exercise: newExerciseName.trim() }]);
+        .insert([{ exercise: trimmed }])
+        .select('id')
+        .single();
 
       if (error) throw error;
 
       // Reload exercises list
       await loadExercises();
-      
+
       // Select the newly added exercise
-      await handleSelectExercise(newExerciseName.trim());
+      await handleSelectExercise(trimmed, String(inserted.id));
       
       setShowAddExercise(false);
       setNewExerciseName('');
@@ -145,6 +146,7 @@ export default function GymSession() {
 
   const createEmptyExercise = (supersetNumber: number, exerciseNumber: number = 1): Exercise => ({
     id: `temp-${Date.now()}-${Math.random()}`,
+    exercise_id: null,
     exercise_name: '',
     superset_number: supersetNumber,
     exercise_number: exerciseNumber,
@@ -168,6 +170,7 @@ export default function GymSession() {
         const exerciseKey = `exercise${exerciseIndex + 1}`;
         jsonbData[supersetKey][exerciseKey] = {
           exercise_name: exercise.exercise_name,
+          exercise_id: exercise.exercise_id,
           sets: {}
         };
         exercise.sets.forEach((set, setIndex) => {
@@ -190,8 +193,11 @@ export default function GymSession() {
       supersets[supersetNum] = [];
       Object.entries(supersetData).forEach(([exerciseKey, exerciseData]: [string, any]) => {
         const exerciseNum = parseInt(exerciseKey.replace('exercise', ''));
+        const rawCatalogId = exerciseData.exercise_id;
         const exercise: Exercise = {
           id: `temp-${supersetNum}-${exerciseNum}`,
+          exercise_id:
+            rawCatalogId === undefined || rawCatalogId === null ? null : String(rawCatalogId),
           exercise_name: exerciseData.exercise_name || '',
           superset_number: supersetNum,
           exercise_number: exerciseNum,
@@ -649,24 +655,24 @@ export default function GymSession() {
                   autoCapitalize="none"
                 />
                 <ScrollView style={styles.exerciseListContainer}>
-                  {filteredExercises.map((exerciseName, index) => (
+                  <TouchableOpacity
+                      style={styles.addExerciseListItem}
+                      onPress={() => setShowAddExercise(true)}
+                    >
+                      <Text style={styles.addExerciseListItemText}>+ Add Exercise</Text>
+                  </TouchableOpacity>
+                  {filteredExercises.map((row, index) => (
                     <TouchableOpacity
                       key={index}
                       style={styles.exerciseListItem}
-                      onPress={() => handleSelectExercise(exerciseName)}
+                      onPress={() => handleSelectExercise(row.exercise, row.exercise_id)}
                     >
-                      <Text style={styles.exerciseListItemText}>{exerciseName}</Text>
+                      <Text style={styles.exerciseListItemText}>{row.exercise}</Text>
                     </TouchableOpacity>
                   ))}
                   {filteredExercises.length === 0 && (
                     <Text style={styles.noResultsText}>No exercises found</Text>
                   )}
-                  <TouchableOpacity
-                    style={styles.addExerciseListItem}
-                    onPress={() => setShowAddExercise(true)}
-                  >
-                    <Text style={styles.addExerciseListItemText}>+ Add Exercise</Text>
-                  </TouchableOpacity>
                 </ScrollView>
                 
                 <TouchableOpacity
