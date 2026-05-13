@@ -17,16 +17,13 @@ export function useHeaderWithMenu({ title, onMenuPress, headerRight }: UseHeader
       title,
       headerLeft: () => (
         <Pressable
-          onPress={onMenuPress} 
-          style={{ 
-            padding: 8, 
-            marginLeft: 8,
+          onPress={onMenuPress}
+          style={{
+            width: 36,
+            height: 36,
             alignItems: 'center',
             justifyContent: 'center',
             backgroundColor: 'transparent',
-            borderWidth: 0,
-            shadowOpacity: 0,
-            elevation: 0,
           }}
           hitSlop={8}
           android_ripple={undefined}

@@ -1,7 +1,7 @@
-import { Ionicons } from '@expo/vector-icons';
 import { router, usePathname } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ensureGlobalSessions } from '../lib/ensureGlobalSessions';
 import { supabase } from '../lib/supabase';
 
 interface SidebarModalProps {
@@ -11,6 +11,9 @@ interface SidebarModalProps {
 
 const INITIAL_DAY_COUNT = 30;
 const LOAD_MORE_DAY_COUNT = 10;
+
+const SIDEBAR_MASTER_KEY = '__sidebar_master__';
+const SIDEBAR_SKILL_KEY = '__sidebar_skill__';
 
 function toIsoDate(date: Date): string {
   const year = date.getFullYear();
@@ -39,6 +42,76 @@ export default function SidebarModal({ visible, onClose }: SidebarModalProps) {
     buildDateBatch(0, INITIAL_DAY_COUNT)
   );
   const [loadedDayCount, setLoadedDayCount] = useState(INITIAL_DAY_COUNT);
+  const [gameDates, setGameDates] = useState<Set<string>>(() => new Set());
+  const [masterSessionId, setMasterSessionId] = useState<string | null>(null);
+  const [skillSessionId, setSkillSessionId] = useState<string | null>(null);
+
+  const sidebarListData = useMemo(
+    () => [SIDEBAR_MASTER_KEY, SIDEBAR_SKILL_KEY, ...dateButtons],
+    [dateButtons]
+  );
+
+  useEffect(() => {
+    if (!visible || dateButtons.length === 0) {
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user || cancelled) {
+        return;
+      }
+
+      await ensureGlobalSessions(user.id);
+      if (cancelled) {
+        return;
+      }
+
+      const dateInList = dateButtons.map((d) => `"${d}"`).join(',');
+      const { data, error } = await supabase
+        .from('FieldSessions')
+        .select('id, date, type, description')
+        .eq('user_id', user.id)
+        .or(`and(date.is.null,type.eq.note),date.in.(${dateInList})`);
+
+      if (cancelled) {
+        return;
+      }
+
+      if (error) {
+        console.error('SidebarModal: failed to load FieldSessions for day styling:', error);
+        return;
+      }
+
+      const next = new Set<string>();
+      let masterId: string | null = null;
+      let skillId: string | null = null;
+
+      for (const row of data ?? []) {
+        if (row.type === 'game' && typeof row.date === 'string') {
+          next.add(row.date);
+        }
+        if (row.date === null && row.type === 'note' && typeof row.id === 'string') {
+          if (row.description === 'MASTER') {
+            masterId = row.id;
+          } else if (row.description === 'SKILL') {
+            skillId = row.id;
+          }
+        }
+      }
+      setGameDates(next);
+      setMasterSessionId(masterId);
+      setSkillSessionId(skillId);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, dateButtons]);
 
   const handleLogout = async () => {
     try {
@@ -68,6 +141,15 @@ export default function SidebarModal({ visible, onClose }: SidebarModalProps) {
     handleNavigation(`/daily-stack?date=${isoDate}`);
   };
 
+  const handleGlobalNotePress = (sessionId: string | null) => {
+    if (!sessionId) {
+      return;
+    }
+    handleNavigation(
+      `/daily-stack/film/journalEntry?sessionId=${sessionId}&sessionDate=null&sessionType=note`
+    );
+  };
+
   const loadMoreDays = useCallback(() => {
     const nextBatch = buildDateBatch(loadedDayCount, LOAD_MORE_DAY_COUNT);
     setDateButtons((prev) => [...prev, ...nextBatch]);
@@ -86,7 +168,7 @@ export default function SidebarModal({ visible, onClose }: SidebarModalProps) {
           <View style={styles.menuContainer}>
             <View style={styles.dayListContainer}>
               <FlatList
-                data={dateButtons}
+                data={sidebarListData}
                 horizontal
                 inverted
                 keyExtractor={(item) => item}
@@ -95,13 +177,49 @@ export default function SidebarModal({ visible, onClose }: SidebarModalProps) {
                 onEndReached={loadMoreDays}
                 contentContainerStyle={styles.dayListContent}
                 renderItem={({ item }) => {
+                  if (item === SIDEBAR_MASTER_KEY) {
+                    const enabled = Boolean(masterSessionId);
+                    return (
+                      <TouchableOpacity
+                        style={[
+                          styles.dayButton,
+                          styles.dayButtonGame,
+                          !enabled && styles.dayButtonDisabled,
+                        ]}
+                        disabled={!enabled}
+                        onPress={() => handleGlobalNotePress(masterSessionId)}
+                      >
+                        <Text style={[styles.dayButtonText, styles.dayButtonTextGame]}>*</Text>
+                      </TouchableOpacity>
+                    );
+                  }
+                  if (item === SIDEBAR_SKILL_KEY) {
+                    const enabled = Boolean(skillSessionId);
+                    return (
+                      <TouchableOpacity
+                        style={[
+                          styles.dayButton,
+                          styles.dayButtonGame,
+                          !enabled && styles.dayButtonDisabled,
+                        ]}
+                        disabled={!enabled}
+                        onPress={() => handleGlobalNotePress(skillSessionId)}
+                      >
+                        <Text style={[styles.dayButtonText, styles.dayButtonTextGame]}>doc</Text>
+                      </TouchableOpacity>
+                    );
+                  }
+
                   const dayNumber = String(Number(item.split('-')[2]));
+                  const isGameDay = gameDates.has(item);
                   return (
                     <TouchableOpacity
-                      style={styles.dayButton}
+                      style={[styles.dayButton, isGameDay && styles.dayButtonGame]}
                       onPress={() => handleDatePress(item)}
                     >
-                      <Text style={styles.dayButtonText}>{dayNumber}</Text>
+                      <Text style={[styles.dayButtonText, isGameDay && styles.dayButtonTextGame]}>
+                        {dayNumber}
+                      </Text>
                     </TouchableOpacity>
                   );
                 }}
@@ -110,10 +228,10 @@ export default function SidebarModal({ visible, onClose }: SidebarModalProps) {
 
             <View style={styles.logoutContainer}>
               <TouchableOpacity style={styles.homeButton} onPress={() => handleNavigation('/home')}>
-                <Ionicons name="home" size={22} color="yellow" />
+                <Text style={styles.homeTextStyle}>/\</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-                <Ionicons name="log-out" size={20} color="#fff" />
+                <Text style={styles.logOutTextStyle}>--{'>'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -172,10 +290,19 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
   },
+  dayButtonGame: {
+    borderColor: '#fff',
+  },
+  dayButtonDisabled: {
+    opacity: 0.45,
+  },
   dayButtonText: {
     fontSize: 22,
-    fontWeight: '600',
+    fontWeight: '300',
     color: 'yellow',
+  },
+  dayButtonTextGame: {
+    color: '#fff',
   },
   logoutContainer: {
     position: 'absolute',
@@ -191,7 +318,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#000',
     borderWidth: 2,
-    borderColor: 'yellow',
+    borderColor: 'white',
     marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: {
@@ -201,6 +328,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+  },
+  homeTextStyle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'white'
   },
   logoutButton: {
     width: 64,
@@ -220,4 +352,9 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
   },
+  logOutTextStyle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'red'
+  }
 });

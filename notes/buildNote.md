@@ -34,6 +34,7 @@ _WAITING_- Totally convolluted Ref flow for scrollView on gym session. Need to s
 FIXED- something maybe not quite right with backend save (sometimes alert will randomly pop up saying something like "failed to save this action" on a blank action without the user pressing anything. Wondering if the React auto runs some refresh on a timer? )
 FIXED- UTC for dates of journal entries and gym entries (standardize handling of dates)
 _PARTIAL_- Cannot "undo" on a sketch if you have already left the screen. Also, undo does not work on grey paths.
+    -Still cannot undo if you have left screen (grey paths fixed)
 FIXED- Add gym session button position fixed, should be part of scroll box
 _WAITING_- Weird flow with "Load More" button on journal stack index page. recentSessions length returning after calling setRecentSession() to a list of lenght 30. Consider timing of state updates (batched and synchronous) and rendering. Also, OBO error -- last session before the load more button gets repeated when more sessions loaded.
 _PARTIAL_- Backend not functioning properly for trainingLoad page (network error?)
@@ -66,7 +67,7 @@ _WAITING_- Right now, nothing about the chat interaction persists across renders
 _WAITING_- Forgot password flow + verify email flow
 - CHAINRUNNER.TS
 _WAITING_- Make subjective feeling for sessions look <Pretty>
-_WAITING_- Modify option for session entries
+IMPLEMENTED- Modify option for session entries
 _PARTIAL_- Self vs other data included
 IMPLEMENTED- Holisitic download for all aspects of a givend day of training (Gym + Journal + SS of sketch?) 
             - Problems right now: handling of null/empty returns from backend, formatting of final CSV possibly related to JSON.stringify being called on already stringified content
@@ -78,7 +79,8 @@ _PARTIAL_ -Sleep section (tracking previous sign in, maybe use push notification
     -Modal now implemented. Need UX for sleep/entry.jsx.
 - Tansition to inputs/outputs structure?
 IMPLEMENTED- Added note to top of gym sessions to track any extra info / distinguish between dates if more than one on a given day.
--Exercise names not linked to the ExerciseList table in backend for gym stack, so if I change the name in the ExerciseList, then specific exercises from the frontend will not reflect that change and will not be linked to the new exercise name even though they refer to the same exercise. Potentially want to link in backend, but then need a way to retroactively update all previous gym exercise entries so that they connect to the ExerciseList also.
+_PARTIAL_-Exercise names not linked to the ExerciseList table in backend for gym stack, so if I change the name in the ExerciseList, then specific exercises from the frontend will not reflect that change and will not be linked to the new exercise name even though they refer to the same exercise. Potentially want to link in backend, but then need a way to retroactively update all previous gym exercise entries so that they connect to the ExerciseList also.
+    -exercise_id stored in json blob but not doing anything functionally at the moment
 
 **API dependencies**
 

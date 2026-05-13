@@ -474,7 +474,7 @@ export default function DailyStackIndex() {
               </TouchableOpacity>
             ))}
             <TouchableOpacity style={styles.plusButton} onPress={() => setShowGymModal(true)}>
-              <Text style={styles.buttonText}>+</Text>
+              {gymRows.length>0 ? <Text style={styles.buttonText}>+</Text> : <Text style={styles.buttonText}>+ Gym</Text>}
             </TouchableOpacity>
           </View>
 
@@ -496,7 +496,7 @@ export default function DailyStackIndex() {
                 setShowFilmModal(true);
               }}
             >
-              <Text style={styles.buttonText}>+</Text>
+              {filmRows.length>0 ? <Text style={styles.buttonText}>+</Text> : <Text style={styles.buttonText}>+ Film</Text>}
             </TouchableOpacity>
           </View>
         </View>
@@ -858,8 +858,8 @@ const styles = StyleSheet.create({
     borderColor: '#ccc',
   },
   typeButtonSelected: {
-    backgroundColor: '#ff9800',
-    borderColor: '#ff9800',
+    backgroundColor: '#FF6B35',
+    borderColor: '#FF6B35',
   },
   typeButtonText: {
     fontSize: 16,

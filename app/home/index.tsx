@@ -581,13 +581,15 @@ export default function HomeScreen() {
 
   // Memoize the headerRight function to prevent unnecessary re-renders
   const renderHeaderRight = useCallback(() => (
-    <TouchableOpacity 
+    <TouchableOpacity
       onPress={() => setShowDownloadModal(true)}
-      style={{ 
-        padding: 8, 
-        marginRight: 8,
+      hitSlop={8}
+      style={{
+        width: 36,
+        height: 36,
         alignItems: 'center',
-        justifyContent: 'center'
+        justifyContent: 'center',
+        backgroundColor: 'transparent',
       }}
     >
       <Image

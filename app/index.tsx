@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Animated, Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { v4 as uuidv4 } from 'uuid';
+import { ensureGlobalSessions } from '../lib/ensureGlobalSessions';
 import { setGoogleProviderToken } from '../lib/googleProviderToken';
 import { supabase } from '../lib/supabase';
 
@@ -139,44 +139,6 @@ export default function LoginScreen() {
     };
   }, [handleFaceID, loginOpacity, loginTranslateY]);
 
-  const ensureMasterSession = async (userId: string) => {
-    const { data: existingSessions, error: fetchError } = await supabase
-      .from('FieldSessions')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('type', 'note')
-      .limit(1);
-
-    if (fetchError) {
-      console.error('Error checking Master session:', fetchError);
-      return;
-    }
-
-    if (!existingSessions || existingSessions.length > 0) {
-      return;
-    }
-
-    const masterSessionId = uuidv4();
-    const { error: insertError } = await supabase
-      .from('FieldSessions')
-      .insert([
-        {
-          id: masterSessionId,
-          user_id: userId,
-          type: 'note',
-          date: null,
-          description: '',
-        },
-      ]);
-
-    if (insertError) {
-      console.error('Error creating Master session:', insertError);
-      return;
-    }
-
-    console.log('Master session created successfully');
-  };
-
   const handleRegister = async () => {
     router.replace(`/registration/register`);
   }
@@ -261,7 +223,7 @@ export default function LoginScreen() {
         await setGoogleProviderToken(sessionData.session.provider_token);
       }
 
-      await ensureMasterSession(sessionData.session.user.id);
+      await ensureGlobalSessions(sessionData.session.user.id);
       console.log('USERID from Google login:', sessionData.session.user.id);
       router.replace(`/home`);
     } catch (error) {

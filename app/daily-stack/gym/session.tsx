@@ -379,13 +379,32 @@ export default function GymSession() {
     await saveSession(next);
   };
 
+  const handleExtinguishExercise = async (catalogExerciseId: string) => {
+    try {
+      const { error } = await supabase.from('GymExercises').delete().eq('id', catalogExerciseId);
+      if (error) throw error;
+      await loadExercises();
+    } catch (error) {
+      console.error('Error removing exercise from catalog:', error);
+      Alert.alert('Error', 'Failed to remove exercise from catalog');
+    }
+  };
+
   const handleLongPressExercise = (exerciseId: string, supersetNumber: number) => {
+    const isCatalog = supersetNumber === -1;
     Alert.alert(
-      'Delete Exercise',
-      'Are you sure you want to delete this exercise from the superset?',
+      isCatalog ? 'Remove from catalog' : 'Delete Exercise',
+      isCatalog
+        ? 'Permanently remove this exercise from your GymExercises catalog? Existing sessions may still reference it.'
+        : 'Are you sure you want to delete this exercise from the superset?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => handleRemoveExercise(exerciseId, supersetNumber) },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () =>
+            isCatalog ? handleExtinguishExercise(exerciseId) : handleRemoveExercise(exerciseId, supersetNumber),
+        },
       ]
     );
   };
@@ -661,11 +680,13 @@ export default function GymSession() {
                     >
                       <Text style={styles.addExerciseListItemText}>+ Add Exercise</Text>
                   </TouchableOpacity>
-                  {filteredExercises.map((row, index) => (
+                  {filteredExercises.map((row) => (
                     <TouchableOpacity
-                      key={index}
+                      key={row.exercise_id}
                       style={styles.exerciseListItem}
                       onPress={() => handleSelectExercise(row.exercise, row.exercise_id)}
+                      onLongPress={() => handleLongPressExercise(row.exercise_id, -1)}
+                      delayLongPress={500}
                     >
                       <Text style={styles.exerciseListItemText}>{row.exercise}</Text>
                     </TouchableOpacity>
