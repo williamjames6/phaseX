@@ -1,17 +1,34 @@
 *** Search Strategy ***
 
-To be implemented in chainRunner.ts
+Implemented in `lib/chain/` (orchestrated by `chainRunner.ts`).
 
-Current approach is equivalent to what the worst case scenario should be: just take 15 most similar actions and append to query.
+## Architecture
 
-- For every frontend query from the user, the chainRunner will run multiple steps to deliver the most accurate information to the final query that contains: 
-    1) All necessary background information
-    2) The user query
+- **OpenAI Responses API** (`gpt-4o-mini`) with function tools (in-bundle MCP-style loop).
+- **Zod** validates every tool call before Supabase access.
+- **Shared `TemporalSpec`** on query tools: `explicit_dates`, `latest`, `range`, `on_or_before`, `on_or_after`.
+- **Max 5** tool rounds per user query; tools may run in parallel within a round.
 
----Etapa 1---
+## Tools
 
-1. Make OpenAI call to determine if query asking about a specific date or dates? If so, respond with just the date(s), separated by commas, in the format MM/DD/YYYY. Today's date is {date}. For example, if the query asks 'what did I do yesterday?', the returned response would be '{date - 1}' "
-    - Right now, dateCheck is half implemented. Need to clarify flow of construction of finalInputList. Also changed chainRunner function so that "timeSwitch" is not passed as param and "similarActions" is not returned with "assistantText"
-    - Potential issue with  UTC instead of local time
-    - Need to fix "convertedGymSessionsData" so that a string gets passed into the final "messages" list instead of an object
-    - SWITCH TO "RESPONSE" API instead of "CHAT COMPLETIONS"
+| Tool | Purpose |
+|------|---------|
+| `query_gym_sessions` | GymSessions; latest/recency; optional exercise JSONB scan (50-session cap) |
+| `query_field_sessions` | FieldSessions with temporal + optional type filter |
+| `query_field_actions` | FieldActions: temporal, text filters, or semantic_query (embedding) |
+| `query_sleep` | Sleep rows by temporal |
+| `query_training_load` | TrainingLoad by temporal (deduped per date) |
+| `search_similar_actions` | Embedding + `search_similar_actions` RPC |
+| `get_global_note_session` | MASTER / SKILL (`date` null) |
+| `search_exercises_by_name` | GymExercises catalog |
+| `search_player_by_name` | Distinct `player_mentions` on FieldActions (ilike) |
+
+## Manual test matrix
+
+See `notes/chainTestPrompts.md`.
+
+## Known follow-ups
+
+- `Sleep.date` is globally UNIQUE in DB (not per user).
+- Home download still selects non-existent `FieldSessions.player_mentions`.
+- Postgres RPC for full-history gym exercise search (optional phase 2).
