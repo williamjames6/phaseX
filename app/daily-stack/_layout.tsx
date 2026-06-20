@@ -40,13 +40,13 @@ export default function DailyStackLayout() {
         }}
       />
       <Stack.Screen
-        name="film/journalEntry/index"
+        name="field/index"
         options={{
-          title: 'Film',
+          title: 'Field',
         }}
       />
       <Stack.Screen
-        name="film/journalEntry/sketchpad/new"
+        name="field/sketchpad/new"
         options={{
           title: 'Sketch',
         }}
