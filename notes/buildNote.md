@@ -1,5 +1,5 @@
 **CURRENT BUILD STRATEGY**
-1. Command to bundle for ios from CLI in IDE:
+1. Command to bundle for ios from CLI in IDE (not necessary to udpate bundle in Xcode, maybe not even necessary to add initially):
  <<
  npx react-native bundle \
   --entry-file index.js \
