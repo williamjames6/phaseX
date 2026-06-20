@@ -1,6 +1,15 @@
 import { router, usePathname } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  Alert,
+  Dimensions,
+  FlatList,
+  Modal,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { ensureGlobalSessions } from '../lib/ensureGlobalSessions';
 import { supabase } from '../lib/supabase';
 
@@ -14,6 +23,20 @@ const LOAD_MORE_DAY_COUNT = 10;
 
 const SIDEBAR_MASTER_KEY = '__sidebar_master__';
 const SIDEBAR_SKILL_KEY = '__sidebar_skill__';
+
+const SCREEN_HEIGHT = Dimensions.get('window').height;
+const MONTH_CODES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function formatDayButtonLabel(isoDate: string): string {
+  const [, monthStr, dayStr] = isoDate.split('-');
+  const dayNumber = Number(dayStr);
+  if (dayNumber !== 1) {
+    return String(dayNumber);
+  }
+  const monthIndex = Number(monthStr) - 1;
+  const monthCode = MONTH_CODES[monthIndex] ?? monthStr;
+  return `${monthCode} ${dayNumber}`;
+}
 
 function toIsoDate(date: Date): string {
   const year = date.getFullYear();
@@ -164,13 +187,20 @@ export default function SidebarModal({ visible, onClose }: SidebarModalProps) {
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
-        <TouchableOpacity style={styles.closeArea} onPress={onClose} activeOpacity={1}>
-          <View style={styles.menuContainer}>
+        <TouchableOpacity
+          style={styles.backdrop}
+          onPress={onClose}
+          activeOpacity={1}
+          accessibilityRole="button"
+          accessibilityLabel="Close menu"
+        />
+        <View style={styles.menuContainer} pointerEvents="box-none">
             <View style={styles.dayListContainer}>
               <FlatList
                 data={sidebarListData}
                 horizontal
                 inverted
+                style={styles.dayList}
                 keyExtractor={(item) => item}
                 showsHorizontalScrollIndicator={false}
                 onEndReachedThreshold={0.9}
@@ -210,15 +240,26 @@ export default function SidebarModal({ visible, onClose }: SidebarModalProps) {
                     );
                   }
 
-                  const dayNumber = String(Number(item.split('-')[2]));
+                  const label = formatDayButtonLabel(item);
+                  const isFirstOfMonth = Number(item.split('-')[2]) === 1;
                   const isGameDay = gameDates.has(item);
                   return (
                     <TouchableOpacity
-                      style={[styles.dayButton, isGameDay && styles.dayButtonGame]}
+                      style={[
+                        styles.dayButton,
+                        isFirstOfMonth && styles.dayButtonFirstOfMonth,
+                        isGameDay && styles.dayButtonGame,
+                      ]}
                       onPress={() => handleDatePress(item)}
                     >
-                      <Text style={[styles.dayButtonText, isGameDay && styles.dayButtonTextGame]}>
-                        {dayNumber}
+                      <Text
+                        style={[
+                          styles.dayButtonText,
+                          isFirstOfMonth && styles.dayButtonTextFirstOfMonth,
+                          isGameDay && styles.dayButtonTextGame,
+                        ]}
+                      >
+                        {label}
                       </Text>
                     </TouchableOpacity>
                   );
@@ -234,8 +275,7 @@ export default function SidebarModal({ visible, onClose }: SidebarModalProps) {
                 <Text style={styles.logOutTextStyle}>--{'>'}</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </TouchableOpacity>
+        </View>
       </View>
     </Modal>
   );
@@ -246,29 +286,32 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.9)',
   },
-  closeArea: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
   },
   menuContainer: {
     flex: 1,
     width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
   },
   menuItemContainer: {
     width: '100%',
     alignItems: 'center',
   },
   dayListContainer: {
+    flex: 1,
     width: '100%',
-    marginBottom: 20,
+  },
+  dayList: {
+    flex: 1,
+    width: '100%',
   },
   dayListContent: {
-    paddingVertical: 8,
-    paddingHorizontal: 4,
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: SCREEN_HEIGHT * 0.28,
+    paddingHorizontal: 16,
+    minHeight: SCREEN_HEIGHT * 0.72,
   },
   dayButton: {
     width: 62,
@@ -290,6 +333,10 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
   },
+  dayButtonFirstOfMonth: {
+    width: 72,
+    paddingHorizontal: 4,
+  },
   dayButtonGame: {
     borderColor: '#fff',
   },
@@ -301,12 +348,19 @@ const styles = StyleSheet.create({
     fontWeight: '300',
     color: 'yellow',
   },
+  dayButtonTextFirstOfMonth: {
+    fontSize: 15,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
   dayButtonTextGame: {
     color: '#fff',
   },
   logoutContainer: {
     position: 'absolute',
     bottom: 50,
+    left: 0,
+    right: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },

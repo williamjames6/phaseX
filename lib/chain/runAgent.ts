@@ -3,9 +3,11 @@
  * Reasoning models would require passing reasoning output items back on each turn; not used here.
  */
 import type OpenAI from 'openai';
-import type { Response } from 'openai/resources/responses/responses';
+import type { Response, ResponseInput, ResponseInputItem } from 'openai/resources/responses/responses';
 import { CHAT_MODEL, MAX_TOOL_ROUNDS } from './constants';
+import { buildGlobalSessionsContextBlock } from './globalSessionContext';
 import { buildInstructions, getLocalDateString } from './prompts';
+import type { FunctionCallOutputItem } from './toolExecutor';
 import { executeFunctionCalls } from './toolExecutor';
 import { OPENAI_TOOLS } from './toolSchemas';
 import type { ChainResult, ChainSupabase, PendingFunctionCall } from './types';
@@ -14,6 +16,15 @@ export interface RunAgentParams {
   query: string;
   supabase: ChainSupabase;
   openaiClient: OpenAI;
+}
+
+function appendRoundInput(
+  input: ResponseInput,
+  output: Response['output'],
+  toolOutputs: FunctionCallOutputItem[]
+): ResponseInput {
+  const next: ResponseInputItem[] = [...input, ...(output ?? []), ...toolOutputs];
+  return next;
 }
 
 function extractFunctionCalls(response: Response): PendingFunctionCall[] {
@@ -61,10 +72,11 @@ export async function runAgent({
 }: RunAgentParams): Promise<ChainResult> {
   const localDate = getLocalDateString();
   const ctx = { supabase, openaiClient, localDate };
-  const instructions = buildInstructions(localDate);
+  const globalSessionsBlock = await buildGlobalSessionsContextBlock(supabase, localDate);
+  const instructions = buildInstructions(localDate, globalSessionsBlock);
 
   // With store: false, previous_response_id is not valid — replay output + tool results in input each round.
-  let inputItems: Array<Record<string, unknown>> = [{ role: 'user', content: query }];
+  let inputItems: ResponseInput = [{ role: 'user', content: query }];
 
   let response = await openaiClient.responses.create({
     model: CHAT_MODEL,
@@ -88,7 +100,7 @@ export async function runAgent({
 
     const outputs = await executeFunctionCalls(calls, ctx);
 
-    inputItems = [...inputItems, ...(response.output ?? []), ...outputs];
+    inputItems = appendRoundInput(inputItems, response.output, outputs);
 
     response = await openaiClient.responses.create({
       model: CHAT_MODEL,

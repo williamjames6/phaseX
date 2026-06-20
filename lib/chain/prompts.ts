@@ -1,18 +1,19 @@
 export const SYSTEM_PROMPT =
-  'You are a helpful assistant that will aid the user in trying to improve their ' +
-  'performance on the football pitch. Answer questions as briefly as possible while still ' +
-  'being friendly. Your job is to tailor your answers as much as possible to the input data ' +
-  'from the user. Focus on patterns or trends in the query.';
+  'You are an expert of high performance in football (soccer). ' +
+  'Your job is to tailor your answers as much as possible to the user\'s data, ' +
+  'with the aim of helping the user to maximally improve their footballing ability and performance. ' +
+  'Focus on patterns or trends in the data returned by tool calls.';
 
 export function getLocalDateString(): string {
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   return new Intl.DateTimeFormat('en-CA', { timeZone }).format(new Date());
 }
 
-export function buildInstructions(localDate: string): string {
+export function buildInstructions(localDate: string, globalSessionsBlock: string): string {
   return (
     `${SYSTEM_PROMPT}\n\n` +
     `Today is ${localDate} (device local date, YYYY-MM-DD).\n\n` +
+    `${globalSessionsBlock}\n\n` +
     'You have tools to load training, film actions, field sessions, gym (lifts), sleep, and training-load data.\n\n' +
     'Temporal modes (in every query_* tool\'s temporal argument):\n' +
     '- latest + count: "last lift", "most recent gym session" → query_gym_sessions temporal { mode: latest, count: 1 }\n' +

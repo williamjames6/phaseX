@@ -7,6 +7,7 @@ import * as Sharing from 'expo-sharing';
 import { OpenAI } from 'openai';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Animated, Dimensions, Image, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import Markdown from 'react-native-markdown-display';
 import useAppState from 'react-native-useappstate';
 import { dateFormatter } from '../../assets/helpers/dateFormatter';
 import { convertToCSV } from '../../assets/helpers/json2SCV';
@@ -21,6 +22,68 @@ import { supabase } from '../../lib/supabase';
 
 const { width } = Dimensions.get('window');
 const MAX_DOWNLOAD_INT = 10000000;
+const ASSISTANT_MESSAGE_PREFIX = 'Secretary Soccer Mom: ';
+const USER_MESSAGE_PREFIX = 'You: ';
+
+const assistantMarkdownStyles = StyleSheet.create({
+  body: {
+    color: '#1a1a1a',
+    fontSize: 16,
+  },
+  paragraph: {
+    marginTop: 0,
+    marginBottom: 8,
+  },
+  bullet_list: {
+    marginBottom: 8,
+  },
+  ordered_list: {
+    marginBottom: 8,
+  },
+  code_inline: {
+    backgroundColor: 'rgba(0, 0, 0, 0.08)',
+    borderRadius: 4,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  fence: {
+    backgroundColor: 'rgba(0, 0, 0, 0.08)',
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 8,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  link: {
+    color: '#0a84ff',
+  },
+});
+
+function renderChatMessage(message: string, index: number) {
+  if (message.startsWith(ASSISTANT_MESSAGE_PREFIX)) {
+    const markdown = message.slice(ASSISTANT_MESSAGE_PREFIX.length);
+    return (
+      <View key={index} style={styles.assistantMessage}>
+        <Text style={styles.assistantMessageLabel}>Secretary Soccer Mom</Text>
+        <Markdown style={assistantMarkdownStyles}>{markdown}</Markdown>
+      </View>
+    );
+  }
+
+  if (message.startsWith(USER_MESSAGE_PREFIX)) {
+    const body = message.slice(USER_MESSAGE_PREFIX.length);
+    return (
+      <View key={index} style={styles.assistantMessage}>
+        <Text style={styles.assistantMessageLabel}>You</Text>
+        <Text style={styles.userMessageBody}>{body}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <Text key={index} style={styles.chatMessage}>
+      {message}
+    </Text>
+  );
+}
 const client = new OpenAI({
   apiKey: Constants.expoConfig?.extra?.openaiApiKey,
   dangerouslyAllowBrowser: true // Required for Expo/React Native
@@ -566,7 +629,7 @@ export default function HomeScreen() {
 
 
       // Add assistant's response to chat history
-      setChatHistory(prev => [...prev, `Assistant: ${assistantText}`]);
+      setChatHistory(prev => [...prev, `Secretary Soccer Mom: ${assistantText}`]);
       setResponse(assistantText);
 
     } catch (error) {
@@ -637,7 +700,7 @@ export default function HomeScreen() {
       //field session data
       const { data: fieldData, error: fieldError } = await supabase
       .from('FieldSessions')
-      .select('date, type, description, physical_score, mental_score, overall_score, player_mentions')
+      .select('date, type, description, physical_score, mental_score, overall_score, note')
       .gte('date', firstDay)
       .lte('date', lastDay)
       .order("date", {ascending: true});
@@ -775,9 +838,7 @@ export default function HomeScreen() {
                   </Animated.View>
                 </View>
               ) : (
-                chatHistory.map((message, index) => (
-                  <Text key={index} style={styles.chatMessage}>{message}</Text>
-                ))
+                chatHistory.map((message, index) => renderChatMessage(message, index))
               )}
             </ScrollView>
             <View style={styles.inputContainer}>
@@ -973,6 +1034,24 @@ const styles = StyleSheet.create({
     padding: 5,
     backgroundColor: 'rgba(255, 255, 255, 0.8)',
     borderRadius: 8,
+    color: '#1a1a1a',
+  },
+  assistantMessage: {
+    marginBottom: 5,
+    padding: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    borderRadius: 8,
+  },
+  assistantMessageLabel: {
+    color: '#666',
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 6,
+    textTransform: 'uppercase',
+  },
+  userMessageBody: {
+    color: '#1a1a1a',
+    fontSize: 16,
   },
   inputContainer: {
     width: width*.9,

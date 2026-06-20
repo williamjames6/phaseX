@@ -1,8 +1,34 @@
-import DateTimePicker from "@react-native-community/datetimepicker";
+import { Picker } from '@react-native-picker/picker';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
-import { Alert, Keyboard, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { Alert, Keyboard, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { supabase } from '../../../lib/supabase';
+
+const HOUR_OPTIONS = Array.from({ length: 24 }, (_, index) => index);
+const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, index) => index * 5);
+
+type TimeField = 'start' | 'end';
+
+function parseTimeString(
+  time: string | null,
+  defaults: { hours: number; minutes: number }
+): { hours: number; minutes: number } {
+  if (!time) {
+    return defaults;
+  }
+  const [hourPart, minutePart] = time.split(':');
+  const hours = Math.min(23, Math.max(0, parseInt(hourPart, 10) || 0));
+  let minutes = parseInt(minutePart, 10) || 0;
+  minutes = Math.min(55, Math.round(minutes / 5) * 5);
+  if (!MINUTE_OPTIONS.includes(minutes)) {
+    minutes = 0;
+  }
+  return { hours, minutes };
+}
+
+function formatTimeParts(hours: number, minutes: number): string {
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+}
 
 interface SleepData {
   id?: string;
@@ -33,22 +59,9 @@ export default function SleepEntry() {
   const [showDisruptionsModal, setShowDisruptionsModal] = useState(false);
   const [showQualityModal, setShowQualityModal] = useState(false);
   const [showArousalModal, setShowArousalModal] = useState(false);
-  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
-  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
-
-  // Initialize dates for time pickers (default 11:00 PM and 7:00 AM)
-  const defaultSleepStart = useMemo(() => {
-    const d = new Date();
-    d.setHours(23, 0, 0, 0);
-    return d;
-  }, []);
-  const defaultSleepEnd = useMemo(() => {
-    const d = new Date();
-    d.setHours(7, 0, 0, 0);
-    return d;
-  }, []);
-  const [sleepStartTime, setSleepStartTime] = useState(defaultSleepStart);
-  const [sleepEndTime, setSleepEndTime] = useState(defaultSleepEnd);
+  const [activeTimeField, setActiveTimeField] = useState<TimeField | null>(null);
+  const [selectedHours, setSelectedHours] = useState(23);
+  const [selectedMinutes, setSelectedMinutes] = useState(0);
 
   const timeToSleepOptions = ['Short', 'Moderate', 'Long'];
   const arousalOptions = ['Alert', 'Moderate', 'Drowsy'];
@@ -79,21 +92,6 @@ export default function SleepEntry() {
 
       if (data) {
         setSleepData(data);
-        
-        // Parse time strings to Date objects for the pickers
-        if (data.sleep_start) {
-          const [hours, minutes] = data.sleep_start.split(':');
-          const startDate = new Date();
-          startDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-          setSleepStartTime(startDate);
-        }
-        
-        if (data.sleep_end) {
-          const [hours, minutes] = data.sleep_end.split(':');
-          const endDate = new Date();
-          endDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-          setSleepEndTime(endDate);
-        }
       }
     } catch (error) {
       console.error('Error loading sleep data:', error);
@@ -108,40 +106,34 @@ export default function SleepEntry() {
     }, [loadSleepData])
   );
 
-  const formatTime = (date: Date): string => {
-    const hours = date.getHours().toString().padStart(2, '0');
-    const minutes = date.getMinutes().toString().padStart(2, '0');
-    return `${hours}:${minutes}`;
+  const openTimePicker = (field: TimeField) => {
+    const currentTime = field === 'start' ? sleepData.sleep_start : sleepData.sleep_end;
+    const defaults = field === 'start' ? { hours: 23, minutes: 0 } : { hours: 7, minutes: 0 };
+    const { hours, minutes } = parseTimeString(currentTime, defaults);
+    setSelectedHours(hours);
+    setSelectedMinutes(minutes);
+    setActiveTimeField(field);
   };
 
-  const handleSleepStartChange = (event: any, selectedTime?: Date) => {
-    if (Platform.OS === 'android') {
-      setShowStartTimePicker(false);
-      if (event.type === 'dismissed') {
-        return;
-      }
-    }
-    if (selectedTime) {
-      setSleepStartTime(selectedTime);
-      const updatedData = { ...sleepData, sleep_start: formatTime(selectedTime) };
-      setSleepData(updatedData);
-      saveSleepData(updatedData);
-    }
+  const closeTimePicker = () => {
+    setActiveTimeField(null);
   };
 
-  const handleSleepEndChange = (event: any, selectedTime?: Date) => {
-    if (Platform.OS === 'android') {
-      setShowEndTimePicker(false);
-      if (event.type === 'dismissed') {
-        return;
-      }
+  const handleTimePickerConfirm = () => {
+    if (activeTimeField == null) {
+      closeTimePicker();
+      return;
     }
-    if (selectedTime) {
-      setSleepEndTime(selectedTime);
-      const updatedData = { ...sleepData, sleep_end: formatTime(selectedTime) };
-      setSleepData(updatedData);
-      saveSleepData(updatedData);
-    }
+
+    const formattedTime = formatTimeParts(selectedHours, selectedMinutes);
+    const updatedData =
+      activeTimeField === 'start'
+        ? { ...sleepData, sleep_start: formattedTime }
+        : { ...sleepData, sleep_end: formattedTime };
+
+    setSleepData(updatedData);
+    saveSleepData(updatedData);
+    closeTimePicker();
   };
 
   const handleTimeToSleepSelect = (value: string) => {
@@ -251,77 +243,21 @@ export default function SleepEntry() {
         {/* Sleep Start Time */}
         <View style={styles.inputContainer}>
           <Text style={styles.inputLabel}>Sleep Start</Text>
-          {Platform.OS === 'ios' ? (
-            <View style={styles.timePickerContainer}>
-              <DateTimePicker
-                value={sleepStartTime}
-                mode="time"
-                is24Hour={true}
-                display="spinner"
-                onChange={handleSleepStartChange}
-                style={styles.timePicker}
-                themeVariant="dark"
-              />
-            </View>
-          ) : (
-            <>
-              <TouchableOpacity
-                style={styles.timeInput}
-                onPress={() => setShowStartTimePicker(true)}
-              >
-                <Text style={styles.timeInputText}>
-                  {sleepData.sleep_start || 'Select time'}
-                </Text>
-              </TouchableOpacity>
-              {showStartTimePicker && (
-                <DateTimePicker
-                  value={sleepStartTime}
-                  mode="time"
-                  is24Hour={true}
-                  display="default"
-                  onChange={handleSleepStartChange}
-                />
-              )}
-            </>
-          )}
+          <TouchableOpacity style={styles.timeInput} onPress={() => openTimePicker('start')}>
+            <Text style={styles.timeInputText}>
+              {sleepData.sleep_start || 'Select time'}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Sleep End Time */}
         <View style={styles.inputContainer}>
           <Text style={styles.inputLabel}>Sleep End</Text>
-          {Platform.OS === 'ios' ? (
-            <View style={styles.timePickerContainer}>
-              <DateTimePicker
-                value={sleepEndTime}
-                mode="time"
-                is24Hour={true}
-                display="spinner"
-                onChange={handleSleepEndChange}
-                style={styles.timePicker}
-                themeVariant="dark"
-              />
-            </View>
-          ) : (
-            <>
-              <TouchableOpacity
-                style={styles.timeInput}
-                onPress={() => setShowEndTimePicker(true)}
-              >
-                <Text style={styles.timeInputText}>
-                  {sleepData.sleep_end || 'Select time'}
-                </Text>
-              </TouchableOpacity>
-              {showEndTimePicker && (
-                <DateTimePicker
-                  value={sleepEndTime}
-                  mode="time"
-                  is24Hour={true}
-                  display="default"
-                  onChange={handleSleepEndChange}
-                />
-              )}
-            </>
-          )}
+          <TouchableOpacity style={styles.timeInput} onPress={() => openTimePicker('end')}>
+            <Text style={styles.timeInputText}>
+              {sleepData.sleep_end || 'Select time'}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Time to Sleep */}
@@ -534,6 +470,66 @@ export default function SleepEntry() {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+
+      {/* Sleep Start / End Time Picker */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={activeTimeField !== null}
+        onRequestClose={closeTimePicker}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.timeModalContent}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity onPress={closeTimePicker}>
+                <Text style={styles.modalHeaderText}>Cancel</Text>
+              </TouchableOpacity>
+              <Text style={styles.timeModalTitle}>
+                {activeTimeField === 'start' ? 'Sleep Start' : 'Sleep End'}
+              </Text>
+              <TouchableOpacity onPress={handleTimePickerConfirm}>
+                <Text style={styles.modalHeaderText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.pickersRow}>
+              <View style={styles.pickerColumn}>
+                <Text style={styles.pickerLabel}>Hours</Text>
+                <Picker
+                  selectedValue={selectedHours}
+                  onValueChange={(value) => setSelectedHours(value)}
+                  style={styles.picker}
+                  itemStyle={styles.pickerItem}
+                >
+                  {HOUR_OPTIONS.map((option) => (
+                    <Picker.Item
+                      key={option}
+                      label={option.toString().padStart(2, '0')}
+                      value={option}
+                    />
+                  ))}
+                </Picker>
+              </View>
+              <View style={styles.pickerColumn}>
+                <Text style={styles.pickerLabel}>Minutes</Text>
+                <Picker
+                  selectedValue={selectedMinutes}
+                  onValueChange={(value) => setSelectedMinutes(value)}
+                  style={styles.picker}
+                  itemStyle={styles.pickerItem}
+                >
+                  {MINUTE_OPTIONS.map((option) => (
+                    <Picker.Item
+                      key={option}
+                      label={option.toString().padStart(2, '0')}
+                      value={option}
+                    />
+                  ))}
+                </Picker>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -585,17 +581,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 10,
   },
-  timePickerContainer: {
-    backgroundColor: '#1a1a1a',
-    borderRadius: 8,
-    padding: 10,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#333',
-  },
-  timePicker: {
-    width: '100%',
-  },
   timeInput: {
     backgroundColor: '#1a1a1a',
     borderRadius: 8,
@@ -637,6 +622,52 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#333',
+  },
+  timeModalContent: {
+    backgroundColor: '#1a1a1a',
+    borderRadius: 10,
+    width: '90%',
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  modalHeaderText: {
+    color: '#0a84ff',
+    fontSize: 16,
+  },
+  timeModalTitle: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  pickersRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-evenly',
+    paddingHorizontal: 10,
+    paddingBottom: 20,
+  },
+  pickerColumn: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  pickerLabel: {
+    color: '#999',
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  picker: {
+    width: '100%',
+  },
+  pickerItem: {
+    color: 'white',
+    fontSize: 18,
   },
   modalTitle: {
     fontSize: 24,

@@ -30,5 +30,4 @@ See `notes/chainTestPrompts.md`.
 ## Known follow-ups
 
 - `Sleep.date` is globally UNIQUE in DB (not per user).
-- Home download still selects non-existent `FieldSessions.player_mentions`.
 - Postgres RPC for full-history gym exercise search (optional phase 2).
