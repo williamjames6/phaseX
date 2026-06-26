@@ -21,6 +21,7 @@ export default function GymSession() {
   const [newExerciseName, setNewExerciseName] = useState('');
   const [exerciseSearchQuery, setExerciseSearchQuery] = useState('');
   const [note, setNote] = useState<string>('');
+  const [sessionTime, setSessionTime] = useState<number | null>(null);
 
 
   useEffect(() => {
@@ -32,6 +33,7 @@ export default function GymSession() {
       setIsNewSession(true);
       setCurrentSessionId(null);
       setNote('');
+      setSessionTime(null);
       setSupersets({
         1: [createEmptyExercise(1)]
       });
@@ -235,7 +237,8 @@ export default function GymSession() {
             user_id: user.id,
             session_date: sessionDate || dateFormatter(new Date()),
             data: jsonbData,
-            note: note || null
+            note: note || null,
+            time: sessionTime,
           });
         if (error) throw error;
         router.setParams({ id: sessionId });
@@ -252,7 +255,7 @@ export default function GymSession() {
       console.error('Error saving session:', error);
       Alert.alert('Error', 'Failed to save session data');
     }
-  }, [supersets, isNewSession, currentSessionId, sessionDate, note, convertSupersetsToJSONB]);
+  }, [supersets, isNewSession, currentSessionId, sessionDate, note, sessionTime, convertSupersetsToJSONB]);
 
   const loadSession = async () => {
     try {
@@ -273,8 +276,9 @@ export default function GymSession() {
       if (sessionError) throw sessionError;
       setSession(sessionData);
       
-      // Load note
+      // Load note and session time
       setNote(sessionData.note || '');
+      setSessionTime(sessionData.time ?? null);
 
       // Load superset data from JSONB column
       if (sessionData.data && Object.keys(sessionData.data).length > 0) {
@@ -467,6 +471,55 @@ export default function GymSession() {
     }
   };
 
+  const saveSessionTime = async (timeValue: number | null) => {
+    const previousTime = sessionTime;
+    setSessionTime(timeValue);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        Alert.alert('Error', 'You must be logged in to save session data');
+        return;
+      }
+
+      let sessionId = currentSessionId;
+
+      if (!sessionId) {
+        sessionId = uuidv4();
+        const jsonbData = convertSupersetsToJSONB(supersets);
+        const { error } = await supabase
+          .from('GymSessions')
+          .insert({
+            id: sessionId,
+            user_id: user.id,
+            session_date: sessionDate || dateFormatter(new Date()),
+            data: jsonbData,
+            note: note || null,
+            time: timeValue,
+          });
+
+        if (error) throw error;
+        router.setParams({ id: sessionId });
+        setCurrentSessionId(sessionId);
+        setIsNewSession(false);
+      } else {
+        const { error } = await supabase
+          .from('GymSessions')
+          .update({ time: timeValue })
+          .eq('id', sessionId)
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+      }
+
+      setSession((prev) => (prev ? { ...prev, time: timeValue } : prev));
+    } catch (error) {
+      setSessionTime(previousTime);
+      console.error('Error saving session time:', error);
+      Alert.alert('Error', 'Failed to save session time');
+    }
+  };
+
   const handleAddSuperset = () => {
     // Calculate the next superset number based on existing supersets
     const existingSupersetNumbers = Object.keys(supersets).map(Number);
@@ -508,6 +561,27 @@ export default function GymSession() {
             <Text style={styles.sessionDate}>
               {session?.session_date ? session.session_date : 'Today'}
             </Text>
+          </View>
+
+          <View style={styles.timeButtonRow}>
+            {([
+              { label: 'Pre', value: 0 },
+              { label: 'Post', value: 1 },
+              { label: 'N/A', value: null },
+            ] as const).map(({ label, value }) => {
+              const isSelected = sessionTime === value;
+              return (
+                <TouchableOpacity
+                  key={label}
+                  style={[styles.timeButton, isSelected && styles.timeButtonSelected]}
+                  onPress={() => saveSessionTime(value)}
+                >
+                  <Text style={[styles.timeButtonText, isSelected && styles.timeButtonTextSelected]}>
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
           {/* Note Input */}
@@ -992,6 +1066,32 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
+  },
+  timeButtonRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
+  },
+  timeButton: {
+    flex: 1,
+    height: 44,
+    borderRadius: 22,
+    borderColor: '#FF6B35',
+    borderWidth: 1,
+    backgroundColor: '#1a1a1a',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  timeButtonSelected: {
+    backgroundColor: '#FF6B35',
+  },
+  timeButtonText: {
+    color: '#FF6B35',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  timeButtonTextSelected: {
+    color: 'white',
   },
   plusSign: {
     color: '#FF6B35',

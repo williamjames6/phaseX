@@ -7,8 +7,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Dimensions, Image, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
-import { timeSwitch } from '../../../../assets/helpers/timeSwitch';
-import { supabase } from '../../../../lib/supabase';
+import { timeSwitch } from '../../../assets/helpers/timeSwitch';
+import { supabase } from '../../../lib/supabase';
 
 interface Action {
   id: number;
@@ -20,6 +20,12 @@ interface Action {
   mental_score?: number; // For training sessions (1-10)
   overall_score?: number; // For training sessions (1-10)
 }
+
+type TrainingLoadMetrics = {
+  trimp: number | null;
+  aerobic_training_effect: number | null;
+  anaerobic_training_effect: number | null;
+};
 const { width, height } = Dimensions.get('window');
 const MINUTE_OPTIONS = Array.from({ length: 301 }, (_, index) => index);
 const SECOND_OPTIONS = Array.from({ length: 12 }, (_, index) => index * 5);
@@ -47,6 +53,7 @@ export default function JournalEntryIndex() {
   const [typingPlayer, setTypingPlayer] = useState<string | null>(null);
   const [validTimestamps, setValidTimestamps] = useState<string[]>([]);
   const [sessionNote, setSessionNote] = useState('');
+  const [trainingLoad, setTrainingLoad] = useState<TrainingLoadMetrics | null>(null);
   let actionAdder = 0;
 
 
@@ -73,7 +80,9 @@ export default function JournalEntryIndex() {
     if (!sessionId) return;
 
     try {
+      setTrainingLoad(null);
       let sessionData: { physical_score?: number | null; mental_score?: number | null; overall_score?: number | null } | null = null;
+      const dateKey = Array.isArray(sessionDate) ? sessionDate[0] : sessionDate;
 
       if (sessionType === "note") {
         setSessionNote('');
@@ -103,6 +112,30 @@ export default function JournalEntryIndex() {
           }
         } else {
           setSessionNote('');
+        }
+      }
+
+      if ((sessionType === 'training' || sessionType === 'game') && dateKey) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: tlData, error: tlError } = await supabase
+            .from('TrainingLoad')
+            .select('trimp, aerobic_training_effect, anaerobic_training_effect')
+            .eq('user_id', user.id)
+            .eq('date', dateKey)
+            .order('date_received', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (!tlError && tlData) {
+            const hasMetrics =
+              tlData.trimp != null ||
+              tlData.aerobic_training_effect != null ||
+              tlData.anaerobic_training_effect != null;
+            if (hasMetrics) {
+              setTrainingLoad(tlData);
+            }
+          }
         }
       }
 
@@ -201,7 +234,7 @@ export default function JournalEntryIndex() {
 
   useEffect(() => {
     loadExistingActions();
-  }, [sessionId]);
+  }, [sessionId, sessionDate, sessionType]);
 
   // Load player mentions on component mount (ALSO PAUSED LIKE playerUpdate)
   // const loadExistingPlayers = async () => {
@@ -458,7 +491,7 @@ export default function JournalEntryIndex() {
   const handleSketchAction = (action: Action) => {
     // Navigate to sketchpad for this action
     router.push({
-      pathname: '/daily-stack/film/journalEntry/sketchpad/new',
+      pathname: '/daily-stack/field/sketchpad/new',
       params: {
         actionId: action.id.toString(), // Use local ID for navigation
         sessionId: sessionId as string,
@@ -800,6 +833,34 @@ export default function JournalEntryIndex() {
                   />
                 </View>
               </View>
+              {trainingLoad && (
+                <View style={styles.trainingInputsRow}>
+                  {trainingLoad.trimp != null && (
+                    <View style={styles.trainingInputContainer}>
+                      <Text style={styles.trainingInputLabel}>TRIMP</Text>
+                      <View style={styles.trainingInputCircleDisplay}>
+                        <Text style={styles.trainingInputValue}>{trainingLoad.trimp}</Text>
+                      </View>
+                    </View>
+                  )}
+                  {trainingLoad.aerobic_training_effect != null && (
+                    <View style={styles.trainingInputContainer}>
+                      <Text style={styles.trainingInputLabel}>Aerobic</Text>
+                      <View style={styles.trainingInputCircleDisplay}>
+                        <Text style={styles.trainingInputValue}>{trainingLoad.aerobic_training_effect}</Text>
+                      </View>
+                    </View>
+                  )}
+                  {trainingLoad.anaerobic_training_effect != null && (
+                    <View style={styles.trainingInputContainer}>
+                      <Text style={styles.trainingInputLabel}>Anaerobic</Text>
+                      <View style={styles.trainingInputCircleDisplay}>
+                        <Text style={styles.trainingInputValue}>{trainingLoad.anaerobic_training_effect}</Text>
+                      </View>
+                    </View>
+                  )}
+                </View>
+              )}
             </View>
             <TextInput
               style={styles.noteInput}
@@ -862,7 +923,7 @@ export default function JournalEntryIndex() {
                       onPress={() => handleSketchAction(action)}
                     >
                       <Image
-                        source={require('../../../../assets/images/onwards.png')}
+                        source={require('../../../assets/images/onwards.png')}
                         style={styles.sketchButtonIcon}
                       />
                     </TouchableOpacity>
@@ -871,7 +932,7 @@ export default function JournalEntryIndex() {
                       onPress={() => handleDeleteAction(action)}
                     >
                       <Image
-                        source={require('../../../../assets/images/pinkTrash.png')}
+                        source={require('../../../assets/images/pinkTrash.png')}
                         style={styles.deleteButtonIcon}
                       />
                     </TouchableOpacity>
@@ -945,7 +1006,7 @@ export default function JournalEntryIndex() {
                       onPress={() => handleSketchAction(action)}
                     >
                       <Image
-                        source={require('../../../../assets/images/onwards.png')}
+                        source={require('../../../assets/images/onwards.png')}
                         style={styles.sketchButtonIcon}
                       />
                     </TouchableOpacity>
@@ -954,7 +1015,7 @@ export default function JournalEntryIndex() {
                       onPress={() => handleDeleteAction(action)}
                     >
                       <Image
-                        source={require('../../../../assets/images/pinkTrash.png')}
+                        source={require('../../../assets/images/pinkTrash.png')}
                         style={styles.deleteButtonIcon}
                       />
                     </TouchableOpacity>
@@ -1337,4 +1398,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     textAlignVertical: 'center',
   },
-}); 
+  trainingInputCircleDisplay: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: '#333',
+    backgroundColor: '#1a1a1a',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  trainingInputValue: {
+    color: '#e5e5e5',
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+});

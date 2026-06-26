@@ -11,11 +11,6 @@ function isIsoDate(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
-type TrainingRow = {
-  id: string;
-  date: string;
-};
-
 type GymRow = {
   id: string;
   session_date: string;
@@ -30,7 +25,6 @@ type FilmRow = {
 export default function DailyStackIndex() {
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [trainingRows, setTrainingRows] = useState<TrainingRow[]>([]);
   const [gymRows, setGymRows] = useState<GymRow[]>([]);
   const [filmRows, setFilmRows] = useState<FilmRow[]>([]);
   const [showGymModal, setShowGymModal] = useState(false);
@@ -100,14 +94,8 @@ export default function DailyStackIndex() {
         throw new Error('You must be logged in to load daily data');
       }
 
-      const [{ data: trainingData, error: trainingError }, { data: gymData, error: gymError }, { data: filmData, error: filmError }] =
+      const [{ data: gymData, error: gymError }, { data: filmData, error: filmError }] =
         await Promise.all([
-          supabase
-            .from('TrainingLoad')
-            .select('id, date')
-            .eq('user_id', user.id)
-            .eq('date', selectedDate),
-            //.order('date_received', { ascending: false }),
           supabase
             .from('GymSessions')
             .select('id, session_date')
@@ -122,11 +110,9 @@ export default function DailyStackIndex() {
             //.order('created_at', { ascending: false }),
         ]);
 
-      if (trainingError) throw trainingError;
       if (gymError) throw gymError;
       if (filmError) throw filmError;
 
-      setTrainingRows((trainingData ?? []) as TrainingRow[]);
       setGymRows((gymData ?? []) as GymRow[]);
       setFilmRows((filmData ?? []) as FilmRow[]);
     } catch (error) {
@@ -147,17 +133,13 @@ export default function DailyStackIndex() {
     router.push(`/daily-stack/sleep/entry?date=${selectedDate}`);
   };
 
-  const openTraining = () => {
-    router.push(`/daily-stack/trainingLoad/session?date=${selectedDate}`);
-  };
-
   const openGym = (sessionId: string) => {
     router.push(`/daily-stack/gym/session?id=${sessionId}`);
   };
 
   const openFilm = (sessionId: string, sessionType: string | null) => {
     router.push(
-      `/daily-stack/film/journalEntry?sessionId=${sessionId}&sessionDate=${selectedDate}&sessionType=${sessionType ?? 'training'}`
+      `/daily-stack/field?sessionId=${sessionId}&sessionDate=${selectedDate}&sessionType=${sessionType ?? 'training'}`
     );
   };
 
@@ -274,7 +256,7 @@ export default function DailyStackIndex() {
       setFilmType('training');
       setFilmDescription('');
       setFilmModalDate(new Date(`${selectedDate}T12:00:00`));
-      router.push(`/daily-stack/film/journalEntry?sessionId=${data.id}&sessionDate=${dateString}&sessionType=${data.type ?? 'training'}`);
+      router.push(`/daily-stack/field?sessionId=${data.id}&sessionDate=${dateString}&sessionType=${data.type ?? 'training'}`);
       loadDailyData();
     } catch (error) {
       console.error('Failed to create film session:', error);
@@ -442,8 +424,6 @@ export default function DailyStackIndex() {
     );
   };
 
-  const hasTraining = useMemo(() => trainingRows.length > 0, [trainingRows.length]);
-
   return (
     <View style={styles.container}>
       {isValid && !loading ? (
@@ -452,14 +432,6 @@ export default function DailyStackIndex() {
             <TouchableOpacity style={styles.circleButton} onPress={openSleep}>
               <Text style={styles.buttonText}>Sleep</Text>
             </TouchableOpacity>
-          </View>
-
-          <View style={styles.row}>
-            {hasTraining ? (
-              <TouchableOpacity style={styles.circleButton} onPress={openTraining}>
-                <Text style={styles.buttonText}>Training</Text>
-              </TouchableOpacity>
-            ) : null}
           </View>
 
           <View style={styles.row}>
@@ -486,7 +458,7 @@ export default function DailyStackIndex() {
                 onPress={() => openFilm(session.id, session.type)}
                 onLongPress={() => handleFilmSessionLongPress(session.id)}
               >
-                <Text style={styles.buttonText}>Film</Text>
+                <Text style={styles.buttonText}>Field</Text>
               </TouchableOpacity>
             ))}
             <TouchableOpacity
@@ -496,7 +468,7 @@ export default function DailyStackIndex() {
                 setShowFilmModal(true);
               }}
             >
-              {filmRows.length>0 ? <Text style={styles.buttonText}>+</Text> : <Text style={styles.buttonText}>+ Film</Text>}
+              {filmRows.length>0 ? <Text style={styles.buttonText}>+</Text> : <Text style={styles.buttonText}>+ Field</Text>}
             </TouchableOpacity>
           </View>
         </View>
@@ -542,7 +514,7 @@ export default function DailyStackIndex() {
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.modalButton, styles.createButton]}
+                  style={[styles.modalButton, styles.createButtonGym]}
                   onPress={handleCreateGym}
                 >
                   <Text style={styles.createButtonText}>Create Session</Text>
@@ -581,7 +553,7 @@ export default function DailyStackIndex() {
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Type:</Text>
                 <View style={styles.typeContainer}>
-                  {['training', 'game', 'note', 'other'].map((type) => (
+                  {['training', 'game', 'other'].map((type) => (
                     <TouchableOpacity
                       key={type}
                       style={[
@@ -621,7 +593,7 @@ export default function DailyStackIndex() {
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.modalButton, styles.createButton]}
+                  style={[styles.modalButton, styles.createButtonField]}
                   onPress={handleCreateFilm}
                 >
                   <Text style={styles.createButtonText}>Create</Text>
@@ -663,7 +635,7 @@ export default function DailyStackIndex() {
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Type:</Text>
                 <View style={styles.typeContainer}>
-                  {['training', 'game', 'note', 'other'].map((type) => (
+                  {['training', 'game', 'other'].map((type) => (
                     <TouchableOpacity
                       key={type}
                       style={[
@@ -703,7 +675,7 @@ export default function DailyStackIndex() {
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.modalButton, styles.createButton]}
+                  style={[styles.modalButton, styles.createButtonField]}
                   onPress={handleModifyFilm}
                 >
                   <Text style={styles.createButtonText}>Modify</Text>
@@ -836,7 +808,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  createButton: {
+  createButtonField: {
+    backgroundColor: '#F41A99',
+  },
+  createButtonGym: {
     backgroundColor: '#FF6B35',
   },
   createButtonText: {
@@ -858,8 +833,8 @@ const styles = StyleSheet.create({
     borderColor: '#ccc',
   },
   typeButtonSelected: {
-    backgroundColor: '#FF6B35',
-    borderColor: '#FF6B35',
+    backgroundColor: '#F41A99',
+    borderColor: '#F41A99',
   },
   typeButtonText: {
     fontSize: 16,

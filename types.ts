@@ -12,6 +12,7 @@ export interface GymSessionRow {
   session_date: string;
   data: any;
   note?: string | null;
+  time?: number | null;
 }
 
 export interface Action {

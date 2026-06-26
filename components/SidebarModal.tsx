@@ -169,7 +169,7 @@ export default function SidebarModal({ visible, onClose }: SidebarModalProps) {
       return;
     }
     handleNavigation(
-      `/daily-stack/film/journalEntry?sessionId=${sessionId}&sessionDate=null&sessionType=note`
+      `/daily-stack/field?sessionId=${sessionId}&sessionDate=null&sessionType=note`
     );
   };
 
@@ -178,6 +178,7 @@ export default function SidebarModal({ visible, onClose }: SidebarModalProps) {
     setDateButtons((prev) => [...prev, ...nextBatch]);
     setLoadedDayCount((prev) => prev + LOAD_MORE_DAY_COUNT);
   }, [loadedDayCount]);
+
 
   return (
     <Modal

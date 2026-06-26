@@ -35,10 +35,10 @@ interface SleepData {
   date: string;
   sleep_start: string | null;
   sleep_end: string | null;
-  time_to_sleep: string | null;
+  time_to_sleep: number | null;
   disruptions: string | null;
   subjective_quality: number | null;
-  arousal: string | null;
+  arousal: number | null;
   note?: string | null;
 }
 
@@ -63,10 +63,8 @@ export default function SleepEntry() {
   const [selectedHours, setSelectedHours] = useState(23);
   const [selectedMinutes, setSelectedMinutes] = useState(0);
 
-  const timeToSleepOptions = ['Short', 'Moderate', 'Long'];
-  const arousalOptions = ['Alert', 'Moderate', 'Drowsy'];
   const disruptionsOptions = ['0', '1-2', '>2'];
-  const numberOptions = Array.from({ length: 10 }, (_, i) => i); // 0-9
+  const scoreOptions = Array.from({ length: 10 }, (_, i) => i + 1);
 
   const loadSleepData = useCallback(async () => {
     if (!date) return;
@@ -136,7 +134,7 @@ export default function SleepEntry() {
     closeTimePicker();
   };
 
-  const handleTimeToSleepSelect = (value: string) => {
+  const handleTimeToSleepSelect = (value: number) => {
     const updatedData = { ...sleepData, time_to_sleep: value };
     setSleepData(updatedData);
     setShowTimeToSleepModal(false);
@@ -157,7 +155,7 @@ export default function SleepEntry() {
     saveSleepData(updatedData);
   };
 
-  const handleArousalSelect = (value: string) => {
+  const handleArousalSelect = (value: number) => {
     const updatedData = { ...sleepData, arousal: value };
     setSleepData(updatedData);
     setShowArousalModal(false);
@@ -268,7 +266,7 @@ export default function SleepEntry() {
             onPress={() => setShowTimeToSleepModal(true)}
           >
             <Text style={styles.textInputText}>
-              {sleepData.time_to_sleep || 'Select option'}
+              {sleepData.time_to_sleep !== null ? sleepData.time_to_sleep.toString() : 'Select number'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -281,7 +279,7 @@ export default function SleepEntry() {
             onPress={() => setShowArousalModal(true)}
           >
             <Text style={styles.textInputText}>
-              {sleepData.arousal || 'Select option'}
+              {sleepData.arousal !== null ? sleepData.arousal.toString() : 'Select number'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -324,23 +322,25 @@ export default function SleepEntry() {
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>Time to Sleep</Text>
-              {timeToSleepOptions.map((option) => (
-                <TouchableOpacity
-                  key={option}
-                  style={[
-                    styles.modalOption,
-                    sleepData.time_to_sleep === option && styles.modalOptionSelected
-                  ]}
-                  onPress={() => handleTimeToSleepSelect(option)}
-                >
-                  <Text style={[
-                    styles.modalOptionText,
-                    sleepData.time_to_sleep === option && styles.modalOptionTextSelected
-                  ]}>
-                    {option.charAt(0).toUpperCase() + option.slice(1)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              <ScrollView style={styles.modalScrollView}>
+                {scoreOptions.map((num) => (
+                  <TouchableOpacity
+                    key={num}
+                    style={[
+                      styles.modalOption,
+                      sleepData.time_to_sleep === num && styles.modalOptionSelected
+                    ]}
+                    onPress={() => handleTimeToSleepSelect(num)}
+                  >
+                    <Text style={[
+                      styles.modalOptionText,
+                      sleepData.time_to_sleep === num && styles.modalOptionTextSelected
+                    ]}>
+                      {num}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
               <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
                 onPress={() => setShowTimeToSleepModal(false)}
@@ -363,23 +363,25 @@ export default function SleepEntry() {
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>Arousal</Text>
-              {arousalOptions.map((option) => (
-                <TouchableOpacity
-                  key={option}
-                  style={[
-                    styles.modalOption,
-                    sleepData.arousal === option && styles.modalOptionSelected
-                  ]}
-                  onPress={() => handleArousalSelect(option)}
-                >
-                  <Text style={[
-                    styles.modalOptionText,
-                    sleepData.arousal === option && styles.modalOptionTextSelected
-                  ]}>
-                    {option.charAt(0).toUpperCase() + option.slice(1)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              <ScrollView style={styles.modalScrollView}>
+                {scoreOptions.map((num) => (
+                  <TouchableOpacity
+                    key={num}
+                    style={[
+                      styles.modalOption,
+                      sleepData.arousal === num && styles.modalOptionSelected
+                    ]}
+                    onPress={() => handleArousalSelect(num)}
+                  >
+                    <Text style={[
+                      styles.modalOptionText,
+                      sleepData.arousal === num && styles.modalOptionTextSelected
+                    ]}>
+                      {num}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
               <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
                 onPress={() => setShowArousalModal(false)}
@@ -442,7 +444,7 @@ export default function SleepEntry() {
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>Subjective Quality</Text>
               <ScrollView style={styles.modalScrollView}>
-                {numberOptions.map((num) => (
+                {scoreOptions.map((num) => (
                   <TouchableOpacity
                     key={num}
                     style={[
