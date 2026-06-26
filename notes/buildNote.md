@@ -30,17 +30,17 @@ FIXED?- Session creation modal keybaord input only allows for numbers, problems 
 FIXED- Keyboard sensitive scrollview responsive to new line on. Anytime someone is typing, the typing line should be visible just above the keyboard
 FIXED- Bug with timestamp because stored as strings, ":" messes with sequential order.
 FIXED- timeSwitch() on timestamp of actions before appending to chat query is returning "cannot read property 'split' of null"
-_WAITING_- Totally convolluted Ref flow for scrollView on gym session. Need to standardize Ref flow across screens for scrolling
 FIXED- something maybe not quite right with backend save (sometimes alert will randomly pop up saying something like "failed to save this action" on a blank action without the user pressing anything. Wondering if the React auto runs some refresh on a timer? )
 FIXED- UTC for dates of journal entries and gym entries (standardize handling of dates)
 _PARTIAL_- Cannot "undo" on a sketch if you have already left the screen. Also, undo does not work on grey paths.
-    -Still cannot undo if you have left screen (grey paths fixed)
+    -Still cannot undo if you have left screen (but fixed grey paths bug above)
 FIXED- Add gym session button position fixed, should be part of scroll box
-_WAITING_- Weird flow with "Load More" button on journal stack index page. recentSessions length returning after calling setRecentSession() to a list of lenght 30. Consider timing of state updates (batched and synchronous) and rendering. Also, OBO error -- last session before the load more button gets repeated when more sessions loaded.
-_PARTIAL_- Backend not functioning properly for trainingLoad page (network error?)
+FIXED- Weird flow with "Load More" button on journal stack index page. recentSessions length returning after calling setRecentSession() to a list of lenght 30. Consider timing of state updates (batched and synchronous) and rendering. Also, OBO error -- last session before the load more button gets repeated when more sessions loaded.
+FIXED- Backend not functioning properly for trainingLoad page (network error?)
     -Switch to Google OAuth sign in thru supabase to access user's gmail account. Currently working on extracting PDF content. Have raw binary in Base64 format but conversion of text characters to human readable text not functioning ATM. 
     -Update: going to use supabse edge function to perform pdf processing because pdf2json package only works in Node runtimes and I do not want to have to host the backend myself. Seems to be a bunch of shit withe Docker and Deno that I need to install to make edge functions work.
     -Update: functioning (somehwhat), loading email-->backend after login into home/index.tsx. Then we have index page in trainingLoad directory that is loading those backend entries. But the flow is totally unreliable, and also unable to capture all of the entries before 3/24 (unclear why that is the starting date)
+    -Resolution: Unstructured API + move training load data into @field/index.tsx page, paired with corresponding session data
 FIXED- Download function not working across year boundary (i.e. downloads all entries from 2025 but not any from 2026 for date range that spans across the change of year)
     - Initial problem was dateFormatter helper function, which did not pad single digit months with zeroes.
     -Thought this was fixed, but still not working. Field sessions from 2026 not downloading properly. Also, multiple sessions on a day seems to cause problems
@@ -49,8 +49,12 @@ FIXED- MAJOR PODS BUG PREVENTING BUILD. PROBLEM WITH UDPATE TO EXPO SDK54
     -If ever encountering "bundle not found" error on iPhone build, change scheme from "development build" to "production build". Dev build automatically looks for Metro port.
 FIXED- Session meta-scores not saving to backend
     -Was happening only for "Game" type sessions because they go thru different processing flow
-_WAITING_- Long hold triggering modal to delete exercise on gym session automatically triggered when focusing "rep", "weight", or "time" input boxes for a given action. Only on actual iPhone build, no indication for app build on simulator. Does not appear for any set of input boxes when they have just been added (i.e. third set added).
-_WAITING_-Download and sidebar button logos not centered in iOS button outlines.
+FIXED- Long hold triggering modal to delete exercise on gym session automatically triggered when focusing "rep", "weight", or "time" input boxes for a given action. Only on actual iPhone build, no indication for app build on simulator. Does not appear for any set of input boxes when they have just been added (i.e. third set added).
+    -Unclear what the issue was here
+FIXED- Download and sidebar button logos not centered in iOS button outlines.
+_WAITING_- Consistency with back buttons and header titles. Especailly issues with MASTER+SKILL notes, sleep page when navigated to on first login of day from the sleep modal.
+_WAITING_- Consistency with ref flow. Totally convolluted. Need to standardize Ref flow across screens for scrolling
+_WAITING_- Handling multiple trainingLoad entries for the same date (need to be routed to the correct corresponding session page at field/index.tsx page)
 
 
 **Features to add**

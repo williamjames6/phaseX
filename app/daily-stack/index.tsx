@@ -468,7 +468,7 @@ export default function DailyStackIndex() {
                 setShowFilmModal(true);
               }}
             >
-              {filmRows.length>0 ? <Text style={styles.buttonText}>+</Text> : <Text style={styles.buttonText}>+ Film</Text>}
+              {filmRows.length>0 ? <Text style={styles.buttonText}>+</Text> : <Text style={styles.buttonText}>+ Field</Text>}
             </TouchableOpacity>
           </View>
         </View>
@@ -514,7 +514,7 @@ export default function DailyStackIndex() {
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.modalButton, styles.createButton]}
+                  style={[styles.modalButton, styles.createButtonGym]}
                   onPress={handleCreateGym}
                 >
                   <Text style={styles.createButtonText}>Create Session</Text>
@@ -593,7 +593,7 @@ export default function DailyStackIndex() {
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.modalButton, styles.createButton]}
+                  style={[styles.modalButton, styles.createButtonField]}
                   onPress={handleCreateFilm}
                 >
                   <Text style={styles.createButtonText}>Create</Text>
@@ -675,7 +675,7 @@ export default function DailyStackIndex() {
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.modalButton, styles.createButton]}
+                  style={[styles.modalButton, styles.createButtonField]}
                   onPress={handleModifyFilm}
                 >
                   <Text style={styles.createButtonText}>Modify</Text>
@@ -808,8 +808,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  createButton: {
+  createButtonField: {
     backgroundColor: '#F41A99',
+  },
+  createButtonGym: {
+    backgroundColor: '#FF6B35',
   },
   createButtonText: {
     color: 'white',
