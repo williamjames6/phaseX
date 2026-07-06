@@ -53,7 +53,7 @@ FIXED- Session meta-scores not saving to backend
 FIXED- Long hold triggering modal to delete exercise on gym session automatically triggered when focusing "rep", "weight", or "time" input boxes for a given action. Only on actual iPhone build, no indication for app build on simulator. Does not appear for any set of input boxes when they have just been added (i.e. third set added).
     -Unclear what the issue was here
 FIXED- Download and sidebar button logos not centered in iOS button outlines.
-_WAITING_- Consistency with back buttons and header titles. Especailly issues with MASTER+SKILL notes, sleep page when navigated to on first login of day from the sleep modal.
+FIXED- Consistency with back buttons and header titles. Especailly issues with MASTER+SKILL notes, sleep page when navigated to on first login of day from the sleep modal.
 _WAITING_- Consistency with ref flow. Totally convolluted. Need to standardize Ref flow across screens for scrolling
 _WAITING_- Handling multiple trainingLoad entries for the same date (need to be routed to the correct corresponding session page at field/index.tsx page)
 

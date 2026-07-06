@@ -335,13 +335,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 8,
     marginBottom: 24,
-    shadowColor: 'yellow',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    borderColor: 'yellow',
+    borderWidth: 1,
+    //shadowColor: 'yellow',
+    //shadowOffset: {
+    //  width: 0,
+    //  height: 4,
+    //},
+    //shadowOpacity: 0.3,
+    //shadowRadius: 8,
     elevation: 8,
   },
   loginButtonText: {

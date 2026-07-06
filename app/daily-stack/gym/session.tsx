@@ -1,8 +1,10 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { v4 as uuidv4 } from 'uuid';
 import { dateFormatter } from '../../../assets/helpers/dateFormatter';
+import { ExpandingTextInput } from '../../../components/ExpandingTextInput';
+import { KeyboardFormScrollView, KeyboardFormScrollViewRef } from '../../../components/KeyboardFormScrollView';
 import { supabase } from '../../../lib/supabase';
 import { Exercise, GymSessionRow } from '../../../types';
 
@@ -22,6 +24,13 @@ export default function GymSession() {
   const [exerciseSearchQuery, setExerciseSearchQuery] = useState('');
   const [note, setNote] = useState<string>('');
   const [sessionTime, setSessionTime] = useState<number | null>(null);
+  const scrollViewRef = useRef<KeyboardFormScrollViewRef>(null);
+  const scrollGymToBottom = useCallback(() => {
+    requestAnimationFrame(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    });
+  }, []);
+
 
 
   useEffect(() => {
@@ -531,6 +540,7 @@ export default function GymSession() {
       ...prev,
       [newSupersetNumber]: [createEmptyExercise(newSupersetNumber, 1)]
     }));
+    scrollGymToBottom();
   };
 
 
@@ -544,24 +554,17 @@ export default function GymSession() {
 
   return (
     <View style={styles.container}>
-      <KeyboardAvoidingView 
-        style={styles.keyboardAvoidingView}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        //keyboardVerticalOffset={Platform.OS === "ios" ? 200 : 0}
-      >
-        <ScrollView 
+        <KeyboardFormScrollView
+          ref={scrollViewRef}
           style={styles.scrollView}
           contentContainerStyle={styles.scrollViewContent}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          automaticallyAdjustKeyboardInsets={true}
         >
           {/* Session Header */}
-          <View style={styles.sessionHeader}>
+          {/* <View style={styles.sessionHeader}>
             <Text style={styles.sessionDate}>
               {session?.session_date ? session.session_date : 'Today'}
             </Text>
-          </View>
+          </View> */}
 
           <View style={styles.timeButtonRow}>
             {([
@@ -585,16 +588,13 @@ export default function GymSession() {
           </View>
 
           {/* Note Input */}
-          <TextInput
-            style={styles.noteInput}
+          <ExpandingTextInput
+            inputStyle={styles.noteInput}
             placeholder="Add a note..."
             placeholderTextColor="#999"
-            multiline={true}
-            scrollEnabled={false}
             value={note}
             onChangeText={setNote}
             onBlur={() => saveNote(note)}
-            textAlignVertical="top"
           />
 
           {/* Supersets */}
@@ -712,13 +712,12 @@ export default function GymSession() {
               </View>
             </View>
           ))}
-        </ScrollView>
+        </KeyboardFormScrollView>
         
         {/* Add Superset Button - Pinned to bottom right */}
         <TouchableOpacity style={styles.addSupersetButton} onPress={handleAddSuperset}>
             <Text style={styles.plusSign}>+</Text>
         </TouchableOpacity>
-      </KeyboardAvoidingView>
 
       {/* Exercise Selection Modal */}
       <Modal

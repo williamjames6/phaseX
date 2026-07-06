@@ -5,9 +5,11 @@ import Constants from 'expo-constants';
 import { router, useLocalSearchParams, useRouter } from 'expo-router';
 import { OpenAI } from 'openai';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Alert, Dimensions, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { Alert, Dimensions, Image, Modal, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
+import { ExpandingTextInput } from '../../../components/ExpandingTextInput';
+import { KeyboardFormScrollView, KeyboardFormScrollViewRef } from '../../../components/KeyboardFormScrollView';
 import { timeSwitch } from '../../../assets/helpers/timeSwitch';
 import { supabase } from '../../../lib/supabase';
 
@@ -50,9 +52,8 @@ export default function JournalEntryIndex() {
   const [actions, setActions] = useState<Action[]>([]);
   const [nextId, setNextId] = useState(1);
   const [loading, setLoading] = useState(true);
-  const scrollViewRef = useRef<ScrollView>(null);
-  const noteScrollViewRef = useRef<ScrollView>(null);
-  const textInputRefs = useRef<{ [key: string]: TextInput | null }>({});
+  const scrollViewRef = useRef<KeyboardFormScrollViewRef>(null);
+  const noteScrollViewRef = useRef<KeyboardFormScrollViewRef>(null);
   const [isPickerVisible, setPickerVisible] = useState(false);
   const [pickerActionId, setPickerActionId] = useState<number | null>(null);
   const [selectedMinutes, setSelectedMinutes] = useState(0);
@@ -63,7 +64,6 @@ export default function JournalEntryIndex() {
   const [validTimestamps, setValidTimestamps] = useState<string[]>([]);
   const [sessionNote, setSessionNote] = useState('');
   const [trainingLoad, setTrainingLoad] = useState<TrainingLoadMetrics | null>(null);
-  let actionAdder = 0;
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -418,6 +418,12 @@ export default function JournalEntryIndex() {
 
   };
 
+  const scrollFieldToBottom = useCallback(() => {
+    requestAnimationFrame(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    });
+  }, []);
+
   const handleAddAction = () => {
     const newAction: Action = {
       id: nextId,
@@ -428,7 +434,7 @@ export default function JournalEntryIndex() {
     };
     setActions([...actions, newAction]);
     setNextId(nextId + 1);
-    actionAdder++;
+    scrollFieldToBottom();
   };
 
   const handleSubmitAction = async (action: Action) => {
@@ -553,15 +559,6 @@ export default function JournalEntryIndex() {
     });
   };
 
-  // Auto-scroll to bottom when new action is added
-  useEffect(() => {
-    if (actions.length > 0) {
-      setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 100); // Small delay to ensure the new action is rendered
-    }
-  }, [actionAdder]);
-
   const updateAction = (id: number, field: 'timestamp' | 'description' | 'physical_score' | 'mental_score' | 'overall_score', value: string | number) => {
     // For score fields, validate and convert to number (1-10)
     if (field === 'physical_score' || field === 'mental_score' || field === 'overall_score') {
@@ -680,35 +677,6 @@ export default function JournalEntryIndex() {
     }
   };
 
-  const scrollToTextInput = (actionId: number) => {
-    // Find the index of the action in the actions array
-    const actionIndex = actions.findIndex(action => action.id === actionId);
-    
-    if (actionIndex >= 0) {
-      // Calculate approximate scroll position based on action index
-      // Each note TextInput is roughly 100px tall with margins
-      const estimatedScrollY = actionIndex * 120;
-      
-      setTimeout(() => {
-        noteScrollViewRef.current?.scrollTo({
-          y: Math.max(0, estimatedScrollY - 100), // Offset to show some context above
-          animated: true
-        });
-      }, 300);
-    }
-  };
-
-  const handleTextInputTap = (actionId: number) => {
-    scrollToTextInput(actionId);
-    // Focus the TextInput after a short delay
-    setTimeout(() => {
-      const textInput = textInputRefs.current[actionId.toString()];
-      if (textInput) {
-        textInput.focus();
-      }
-    }, 100);
-  };
-
   const openPickerForAction = (action: Action) => {
     let minutes = 0;
     let seconds = 0;
@@ -771,61 +739,39 @@ export default function JournalEntryIndex() {
   return (
     sessionType === "note" ? 
     <View style={styles.container}>
-      <KeyboardAvoidingView 
-        style={styles.keyboardAvoidingView}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 0}
-      >
-        <ScrollView 
+        <KeyboardFormScrollView
           ref={noteScrollViewRef}
           style={styles.noteScrollView}
           contentContainerStyle={styles.noteScrollContent}
-          keyboardShouldPersistTaps="handled"
         >
           {actions.map((action) => (
-            <TouchableWithoutFeedback
+            <ExpandingTextInput
               key={action.id}
-              onPress={() => handleTextInputTap(action.id)}
-            >
-              <TextInput
-                ref={(ref) => {
-                  if (ref) {
-                    textInputRefs.current[action.id.toString()] = ref;
-                  }
-                }}
-                style={styles.noteStyle}
-                placeholder=""
-                value={action.description}
-                onChangeText={(value) => updateAction(action.id, 'description', value)}
-                placeholderTextColor="#999"
-                multiline={true}
-                scrollEnabled={false}
-                onFocus={() => {
-                  updateValidTimestamps(action.id);
-                }}
-                onBlur={async () => {
-                  if (typingPlayer !== null && typingPlayer !== '') {
-                    addNewPlayer(typingPlayer);
-                    setTypingPlayer(null);
-                  }
-                  handleSubmitAction(action);
-                }}
-              />
-            </TouchableWithoutFeedback>
+              inputStyle={styles.noteStyle}
+              placeholder=""
+              value={action.description}
+              onChangeText={(value) => updateAction(action.id, 'description', value)}
+              placeholderTextColor="#999"
+              onFocus={() => {
+                updateValidTimestamps(action.id);
+              }}
+              onBlur={async () => {
+                if (typingPlayer !== null && typingPlayer !== '') {
+                  addNewPlayer(typingPlayer);
+                  setTypingPlayer(null);
+                }
+                handleSubmitAction(action);
+              }}
+            />
           ))}
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardFormScrollView>
     </View>   
     :    
     <View style={styles.container}>
-      
-      {/* <KeyboardAwareScrollView> */}
-
-      <ScrollView 
+      <KeyboardFormScrollView
         ref={scrollViewRef}
         style={styles.scrollView} 
         contentContainerStyle={styles.scrollContent}
-        automaticallyAdjustKeyboardInsets={true}
       >
         {(sessionType === "training" || sessionType === "game") && actions[0] ? (
           <>
@@ -915,16 +861,13 @@ export default function JournalEntryIndex() {
                 </View>
               )}
             </View>
-            <TextInput
-              style={styles.noteInput}
+            <ExpandingTextInput
+              inputStyle={styles.noteInput}
               placeholder="Add a note..."
               placeholderTextColor="#999"
-              multiline={true}
-              scrollEnabled={false}
               value={sessionNote}
               onChangeText={setSessionNote}
               onBlur={() => saveFieldSessionNote(sessionNote)}
-              textAlignVertical="top"
             />
             {actions.slice(1).map((action) => (
               <View key={action.id} style={styles.actionContainer}>
@@ -937,13 +880,12 @@ export default function JournalEntryIndex() {
                       {action.timestamp || '00:00'}
                     </Text>
                   </TouchableOpacity>
-                  <TextInput
-                    style={styles.descriptionInput}
+                  <ExpandingTextInput
+                    inputStyle={styles.descriptionInput}
                     placeholder="Description of action..."
                     value={action.description}
                     onChangeText={(value) => updateAction(action.id, 'description', value)}
                     placeholderTextColor="#999"
-                    multiline={true}
                     onFocus={() => {
                       updateValidTimestamps(action.id);
                     }}
@@ -997,16 +939,13 @@ export default function JournalEntryIndex() {
         ) : (
           <>
             {sessionType === "other" && (
-              <TextInput
-                style={styles.noteInput}
+              <ExpandingTextInput
+                inputStyle={styles.noteInput}
                 placeholder="Add a note..."
                 placeholderTextColor="#999"
-                multiline={true}
-                scrollEnabled={false}
                 value={sessionNote}
                 onChangeText={setSessionNote}
                 onBlur={() => saveFieldSessionNote(sessionNote)}
-                textAlignVertical="top"
               />
             )}
             {actions.map((action) => (
@@ -1020,13 +959,12 @@ export default function JournalEntryIndex() {
                       {action.timestamp || '00:00'}
                     </Text>
                   </TouchableOpacity>
-                  <TextInput
-                    style={styles.descriptionInput}
+                  <ExpandingTextInput
+                    inputStyle={styles.descriptionInput}
                     placeholder="Description of action..."
                     value={action.description}
                     onChangeText={(value) => updateAction(action.id, 'description', value)}
                     placeholderTextColor="#999"
-                    multiline={true}
                     onFocus={() => {
                       updateValidTimestamps(action.id);
                     }}
@@ -1078,10 +1016,7 @@ export default function JournalEntryIndex() {
             ))}
           </>
         )}
-      </ScrollView>
-      
-      {/* </KeyboardAwareScrollView> */}
-      
+      </KeyboardFormScrollView>
       
       <View style={styles.bottomButtonsContainer}>       
         <TouchableOpacity style={styles.addButton} onPress={handleAddAction}>

@@ -59,5 +59,25 @@ target 'phaseX' do
       :mac_catalyst_enabled => false,
       :ccache_enabled => ccache_enabled?(podfile_properties),
     )
+
+    # Xcode 26+: fmt 11.0.2 consteval is incompatible with Apple Clang 21
+    installer.pods_project.targets.each do |target|
+      if target.name == 'fmt'
+        target.build_configurations.each do |build_config|
+          build_config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++17'
+        end
+      end
+    end
+
+    # ReactCodegen needs folly/glog headers when using prebuilt RN dependencies
+    installer.pods_project.targets.each do |target|
+      next unless target.name == 'ReactCodegen'
+
+      target.build_configurations.each do |build_config|
+        build_config.build_settings['HEADER_SEARCH_PATHS'] ||= ['$(inherited)']
+        build_config.build_settings['HEADER_SEARCH_PATHS'] << '"${PODS_ROOT}/Headers/Public/ReactNativeDependencies"'
+        build_config.build_settings['HEADER_SEARCH_PATHS'] << '"${PODS_ROOT}/Headers/Public/RCT-Folly"'
+      end
+    end
   end
 end
