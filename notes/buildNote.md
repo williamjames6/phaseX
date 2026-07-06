@@ -1,5 +1,5 @@
 **CURRENT BUILD STRATEGY**
-1. Command to bundle for ios from CLI in IDE:
+1. Command to bundle for ios from CLI in IDE (not necessary to udpate bundle in Xcode, maybe not even necessary to add initially):
  <<
  npx react-native bundle \
   --entry-file index.js \
@@ -8,7 +8,11 @@
   --bundle-output ios/main.jsbundle \
   --assets-dest ios
  >>   
+<<<<<<< HEAD
 beep bop
+=======
+boop
+>>>>>>> backendFix
  2. Manually drag and drop "assets" folder and "main.jsbundle" into xcode "phaseX" project
 
  3. "Build" in Xcode with desired iOS device selected ( use the .xcworkspace, not .xcodeproj [open -a Xcode ios/phaseX.xcworkspace])
