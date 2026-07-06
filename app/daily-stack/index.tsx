@@ -22,19 +22,31 @@ type FilmRow = {
   type: string | null;
 };
 
+type NoteRow = {
+  id: string;
+  date: string;
+  description: string | null;
+};
+
 export default function DailyStackIndex() {
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
   const [loading, setLoading] = useState(true);
   const [gymRows, setGymRows] = useState<GymRow[]>([]);
   const [filmRows, setFilmRows] = useState<FilmRow[]>([]);
+  const [noteRows, setNoteRows] = useState<NoteRow[]>([]);
   const [showGymModal, setShowGymModal] = useState(false);
   const [showFilmModal, setShowFilmModal] = useState(false);
+  const [showNoteModal, setShowNoteModal] = useState(false);
   const [modifyFilmModal, setModifyFilmModal] = useState(false);
+  const [modifyNoteModal, setModifyNoteModal] = useState(false);
   const [editingFilmSessionId, setEditingFilmSessionId] = useState<string | null>(null);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [gymModalDate, setGymModalDate] = useState(new Date());
   const [filmModalDate, setFilmModalDate] = useState(new Date());
+  const [noteModalDate, setNoteModalDate] = useState(new Date());
   const [filmType, setFilmType] = useState('training');
   const [filmDescription, setFilmDescription] = useState('');
+  const [noteDescription, setNoteDescription] = useState('');
 
   const { date } = useLocalSearchParams<{ date?: string }>();
   const selectedDate = typeof date === 'string' ? date : '';
@@ -76,6 +88,7 @@ export default function DailyStackIndex() {
     if (!Number.isNaN(parsed.getTime())) {
       setGymModalDate(parsed);
       setFilmModalDate(parsed);
+      setNoteModalDate(parsed);
     }
   }, [isValid, selectedDate]);
 
@@ -94,27 +107,37 @@ export default function DailyStackIndex() {
         throw new Error('You must be logged in to load daily data');
       }
 
-      const [{ data: gymData, error: gymError }, { data: filmData, error: filmError }] =
-        await Promise.all([
+      const [
+        { data: gymData, error: gymError },
+        { data: filmData, error: filmError },
+        { data: noteData, error: noteError },
+      ] = await Promise.all([
           supabase
             .from('GymSessions')
             .select('id, session_date')
             .eq('user_id', user.id)
             .eq('session_date', selectedDate),
-            //.order('session_date', { ascending: false }),
           supabase
             .from('FieldSessions')
             .select('id, date, type')
             .eq('user_id', user.id)
             .eq('date', selectedDate)
-            //.order('created_at', { ascending: false }),
+            .in('type', ['training', 'game', 'other']),
+          supabase
+            .from('Notes')
+            .select('id, date, description')
+            .eq('user_id', user.id)
+            .eq('type', 'note')
+            .eq('date', selectedDate),
         ]);
 
       if (gymError) throw gymError;
       if (filmError) throw filmError;
+      if (noteError) throw noteError;
 
       setGymRows((gymData ?? []) as GymRow[]);
       setFilmRows((filmData ?? []) as FilmRow[]);
+      setNoteRows((noteData ?? []) as NoteRow[]);
     } catch (error) {
       console.error('Failed to load daily stack data:', error);
       Alert.alert('Error', 'Failed to load daily data');
@@ -141,6 +164,10 @@ export default function DailyStackIndex() {
     router.push(
       `/daily-stack/field?sessionId=${sessionId}&sessionDate=${selectedDate}&sessionType=${sessionType ?? 'training'}`
     );
+  };
+
+  const openNote = (id: string) => {
+    router.push(`/daily-stack/note?noteId=${id}`);
   };
 
   const handleCreateGym = async () => {
@@ -269,6 +296,166 @@ export default function DailyStackIndex() {
     setFilmType('training');
     setFilmDescription('');
     setEditingFilmSessionId(null);
+  };
+
+  const resetNoteModalFields = () => {
+    setNoteModalDate(new Date(`${selectedDate}T12:00:00`));
+    setNoteDescription('');
+    setEditingNoteId(null);
+  };
+
+  const handleCreateNote = async () => {
+    try {
+      const dateString = dateFormatter(noteModalDate);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        Alert.alert('Error', 'You must be logged in to create notes');
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('Notes')
+        .insert([
+          {
+            user_id: user.id,
+            type: 'note',
+            date: dateString,
+            description: noteDescription,
+            note: '',
+          },
+        ])
+        .select('id')
+        .single();
+
+      if (error || !data) {
+        throw error ?? new Error('Failed to create note');
+      }
+
+      setShowNoteModal(false);
+      resetNoteModalFields();
+      router.push(`/daily-stack/note?noteId=${data.id}`);
+      loadDailyData();
+    } catch (error) {
+      console.error('Failed to create note:', error);
+      Alert.alert('Error', 'Failed to create note');
+    }
+  };
+
+  const handleModifyNote = async () => {
+    if (!editingNoteId) return;
+
+    try {
+      const dateString = dateFormatter(noteModalDate);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        Alert.alert('Error', 'You must be logged in to modify notes');
+        return;
+      }
+
+      const { error } = await supabase
+        .from('Notes')
+        .update({
+          date: dateString,
+          description: noteDescription,
+        })
+        .eq('id', editingNoteId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      setModifyNoteModal(false);
+      resetNoteModalFields();
+      loadDailyData();
+    } catch (error) {
+      console.error('Failed to modify note:', error);
+      Alert.alert('Error', 'Failed to modify note');
+    }
+  };
+
+  const handleNoteLongPress = (noteId: string) => {
+    Alert.alert(
+      'Delete Note',
+      'Are you sure you want to delete this note? This will permanently remove it.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Modify',
+          style: 'default',
+          onPress: async () => {
+            try {
+              const {
+                data: { user },
+              } = await supabase.auth.getUser();
+              if (!user) {
+                Alert.alert('Error', 'You must be logged in to modify notes');
+                return;
+              }
+
+              const { data, error } = await supabase
+                .from('Notes')
+                .select('date, description')
+                .eq('id', noteId)
+                .eq('user_id', user.id)
+                .single();
+
+              if (error || !data) {
+                console.error('Error loading note for edit:', error);
+                Alert.alert('Error', 'Failed to load note');
+                return;
+              }
+
+              setNoteDescription(typeof data.description === 'string' ? data.description : '');
+              const rowDate = data.date as string | null;
+              if (rowDate && isIsoDate(rowDate)) {
+                setNoteModalDate(new Date(`${rowDate}T12:00:00`));
+              }
+              setEditingNoteId(noteId);
+              setModifyNoteModal(true);
+            } catch (err) {
+              console.error('Error loading note for modify:', err);
+              Alert.alert('Error', 'Failed to load note');
+            }
+          },
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const {
+                data: { user },
+              } = await supabase.auth.getUser();
+              if (!user) {
+                Alert.alert('Error', 'You must be logged in to delete notes');
+                return;
+              }
+
+              const { error } = await supabase
+                .from('Notes')
+                .delete()
+                .eq('id', noteId)
+                .eq('user_id', user.id);
+
+              if (error) {
+                console.error('Error deleting note:', error);
+                Alert.alert('Error', 'Failed to delete note');
+                return;
+              }
+
+              Alert.alert('Success', 'Note deleted successfully');
+              loadDailyData();
+            } catch (error) {
+              console.error('Error deleting note:', error);
+              Alert.alert('Error', 'Failed to delete note');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleModifyFilm = async () => {
@@ -469,6 +656,32 @@ export default function DailyStackIndex() {
               }}
             >
               {filmRows.length>0 ? <Text style={styles.buttonText}>+</Text> : <Text style={styles.buttonText}>+ Field</Text>}
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.row}>
+            {noteRows.map((note) => (
+              <TouchableOpacity
+                key={note.id}
+                style={styles.circleButton}
+                onPress={() => openNote(note.id)}
+                onLongPress={() => handleNoteLongPress(note.id)}
+              >
+                <Text style={styles.buttonText}>Note</Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity
+              style={styles.plusButton}
+              onPress={() => {
+                resetNoteModalFields();
+                setShowNoteModal(true);
+              }}
+            >
+              {noteRows.length > 0 ? (
+                <Text style={styles.buttonText}>+</Text>
+              ) : (
+                <Text style={styles.buttonText}>+ Note</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -685,6 +898,123 @@ export default function DailyStackIndex() {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+
+      <Modal
+        visible={showNoteModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowNoteModal(false)}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>New Note</Text>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Date:</Text>
+                <View style={styles.datePicker}>
+                  <DateTimePicker
+                    value={noteModalDate}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'default' : 'calendar'}
+                    minimumDate={twoYearsAgo}
+                    maximumDate={today}
+                    onChange={(event, value) => {
+                      if (value) setNoteModalDate(value);
+                    }}
+                  />
+                </View>
+              </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Description (optional):</Text>
+                <TextInput
+                  style={styles.sessionDescription}
+                  value={noteDescription}
+                  onChangeText={setNoteDescription}
+                  placeholder="e.g. Pre-match thoughts"
+                  keyboardType="default"
+                />
+              </View>
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.cancelButton]}
+                  onPress={() => {
+                    setShowNoteModal(false);
+                    resetNoteModalFields();
+                  }}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.createButtonNote]}
+                  onPress={handleCreateNote}
+                >
+                  <Text style={styles.createButtonText}>Create</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      <Modal
+        visible={modifyNoteModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          setModifyNoteModal(false);
+          resetNoteModalFields();
+        }}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Modify Note</Text>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Date:</Text>
+                <View style={styles.datePicker}>
+                  <DateTimePicker
+                    value={noteModalDate}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'default' : 'calendar'}
+                    minimumDate={twoYearsAgo}
+                    maximumDate={today}
+                    onChange={(event, value) => {
+                      if (value) setNoteModalDate(value);
+                    }}
+                  />
+                </View>
+              </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Description (optional):</Text>
+                <TextInput
+                  style={styles.sessionDescription}
+                  value={noteDescription}
+                  onChangeText={setNoteDescription}
+                  placeholder="e.g. Pre-match thoughts"
+                  keyboardType="default"
+                />
+              </View>
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.cancelButton]}
+                  onPress={() => {
+                    setModifyNoteModal(false);
+                    resetNoteModalFields();
+                  }}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.createButtonNote]}
+                  onPress={handleModifyNote}
+                >
+                  <Text style={styles.createButtonText}>Modify</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </View>
   );
 }
@@ -810,6 +1140,9 @@ const styles = StyleSheet.create({
   },
   createButtonField: {
     backgroundColor: '#F41A99',
+  },
+  createButtonNote: {
+    backgroundColor: '#D62C09',
   },
   createButtonGym: {
     backgroundColor: '#FF6B35',

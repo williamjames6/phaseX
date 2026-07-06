@@ -3,6 +3,7 @@ import { StyleProp, StyleSheet, TextInput, TextInputProps, TextStyle, View, View
 type ExpandingTextInputProps = Omit<TextInputProps, 'multiline' | 'scrollEnabled'> & {
   containerStyle?: StyleProp<ViewStyle>;
   inputStyle?: StyleProp<TextStyle>;
+  style?: StyleProp<ViewStyle>;
 };
 
 export function ExpandingTextInput({
@@ -26,9 +27,11 @@ export function ExpandingTextInput({
 
 const styles = StyleSheet.create({
   container: {
-    position: 'relative',
+    alignSelf: 'stretch',
+    minWidth: 0,
   },
   input: {
     width: '100%',
+    minHeight: 40,
   },
 });

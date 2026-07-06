@@ -731,36 +731,24 @@ export default function HomeScreen() {
         iterator.setDate(iterator.getDate() + 1);
       };
 
-      const { data: globalSessions, error: globalSessionsError } = await supabase
-        .from('FieldSessions')
-        .select('id')
+      const { data: globalNotes, error: globalNotesError } = await supabase
+        .from('Notes')
+        .select('note')
         .eq('user_id', user.id)
-        .is('date', null);
+        .eq('type', 'global');
 
-      if (globalSessionsError) {
-        console.log(globalSessionsError);
+      if (globalNotesError) {
+        console.log(globalNotesError);
       } else {
-        const globalSessionIds = (globalSessions ?? []).map((session) => session.id);
-        if (globalSessionIds.length > 0) {
-          const { data: globalActions, error: globalActionsError } = await supabase
-            .from('FieldActions')
-            .select('description')
-            .in('session_id', globalSessionIds);
-
-          if (globalActionsError) {
-            console.log(globalActionsError);
-          } else {
-            for (const action of globalActions ?? []) {
-              if (!action.description?.trim()) {
-                continue;
-              }
-              processedData.push({
-                date: 'global_note',
-                gym_data: [],
-                session_data: [{ description: action.description }],
-              });
-            }
+        for (const row of globalNotes ?? []) {
+          if (!row.note?.trim()) {
+            continue;
           }
+          processedData.push({
+            date: 'global_note',
+            gym_data: [],
+            session_data: [{ description: row.note }],
+          });
         }
       }
 

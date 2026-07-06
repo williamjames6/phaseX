@@ -46,6 +46,12 @@ export default function DailyStackLayout() {
         }}
       />
       <Stack.Screen
+        name="note/index"
+        options={{
+          title: 'Note',
+        }}
+      />
+      <Stack.Screen
         name="field/sketchpad/new"
         options={{
           title: 'Sketch',

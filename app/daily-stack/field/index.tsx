@@ -29,7 +29,7 @@ type TrainingLoadMetrics = {
   aerobic_training_effect: number | null;
   anaerobic_training_effect: number | null;
 };
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 const MINUTE_OPTIONS = Array.from({ length: 301 }, (_, index) => index);
 const SECOND_OPTIONS = Array.from({ length: 12 }, (_, index) => index * 5);
 
@@ -39,12 +39,6 @@ const client = new OpenAI({
   dangerouslyAllowBrowser: true // Required for Expo/React Native
 });
 
-function getGlobalNoteTitle(description: string | null | undefined): string | null {
-  if (description === 'MASTER') return 'Master';
-  if (description === 'SKILL') return 'Skill';
-  return null;
-}
-
 export default function JournalEntryIndex() {
   const { sessionId, sessionDate, sessionType } = useLocalSearchParams();
   const navigation = useNavigation();
@@ -53,7 +47,6 @@ export default function JournalEntryIndex() {
   const [nextId, setNextId] = useState(1);
   const [loading, setLoading] = useState(true);
   const scrollViewRef = useRef<KeyboardFormScrollViewRef>(null);
-  const noteScrollViewRef = useRef<KeyboardFormScrollViewRef>(null);
   const [isPickerVisible, setPickerVisible] = useState(false);
   const [pickerActionId, setPickerActionId] = useState<number | null>(null);
   const [selectedMinutes, setSelectedMinutes] = useState(0);
@@ -119,13 +112,8 @@ export default function JournalEntryIndex() {
       let sessionData: { physical_score?: number | null; mental_score?: number | null; overall_score?: number | null } | null = null;
       const dateKey = Array.isArray(sessionDate) ? sessionDate[0] : sessionDate;
 
-      if (sessionType !== 'note') {
-        navigation.setOptions({ title: 'Field' });
-      }
+      navigation.setOptions({ title: 'Field' });
 
-      if (sessionType === "note") {
-        setSessionNote('');
-      } else {
         const fsColumns =
           sessionType === 'training' || sessionType === 'game'
             ? 'physical_score, mental_score, overall_score, note'
@@ -152,7 +140,6 @@ export default function JournalEntryIndex() {
         } else {
           setSessionNote('');
         }
-      }
 
       if ((sessionType === 'training' || sessionType === 'game') && dateKey) {
         const { data: { user } } = await supabase.auth.getUser();
@@ -178,106 +165,56 @@ export default function JournalEntryIndex() {
         }
       }
 
-      // Handle note type sessions differently
-      if (sessionType === "note") {
-        const { data: noteSessionMeta, error: noteSessionMetaError } = await supabase
-          .from('FieldSessions')
-          .select('description')
-          .eq('id', sessionId)
-          .maybeSingle();
+      // Load field actions
+      const { data, error } = await supabase
+        .from('FieldActions')
+        .select('id, time_stamp_seconds, description, sketch_id')
+        .eq('session_id', sessionId)
+        .order('time_stamp_seconds', { ascending: true });
 
-        if (!noteSessionMetaError) {
-          const dateKeyIsNull = !dateKey || dateKey === 'null';
-          const globalTitle = dateKeyIsNull
-            ? getGlobalNoteTitle(noteSessionMeta?.description)
-            : null;
-          navigation.setOptions({ title: globalTitle ?? 'Field' });
-        }
-
-        const { data, error } = await supabase
-          .from('FieldActions')
-          .select('id, description, sketch_id')
-          .eq('session_id', sessionId)
-          .is('time_stamp_seconds', null);
-
-        if (error) {
-          console.error('Error loading note actions:', error);
-          return;
-        }
-
-        // Convert database actions to local action format for notes
-        const existingActions: Action[] = (data || []).map((dbAction, index) => ({
-          id: -(index + 1), // Use negative IDs to avoid conflicts with new actions
-          timestamp: "", // No timestamp for note actions
-          description: dbAction.description,
-          dbId: dbAction.id, // Store the actual database ID
-          sketch_id: dbAction.sketch_id
-        }));
-        
-        if (existingActions.length === 0) {
-          const starterAction: Action = {
-            id: -1,
-            timestamp: "",
-            description: "",
-            dbId: uuidv4(), 
-            sketch_id: uuidv4(),
-          }
-          existingActions.push(starterAction) 
-        }
-        
-        setActions(existingActions);
-        setNextId(Math.abs(existingActions.length) + 1);
-      } else if (sessionType !== "note") {
-        const { data, error } = await supabase
-          .from('FieldActions')
-          .select('id, time_stamp_seconds, description, sketch_id')
-          .eq('session_id', sessionId)
-          .order('time_stamp_seconds', { ascending: true });
-
-        if (error) {
-          console.error('Error loading actions:', error);
-          return;
-        }
-        
-        const existingActions: Action[] = [];
-
-        if (sessionType === "training" || sessionType === "game") {
-          const firstAction: Action = {
-            id: -1,
-            timestamp: "",
-            description: "",
-            dbId: uuidv4(),
-            sketch_id: uuidv4(),
-            physical_score: sessionData?.physical_score || undefined,
-            mental_score: sessionData?.mental_score || undefined,
-            overall_score: sessionData?.overall_score || undefined,
-          };
-          existingActions.push(firstAction);
-        }
-
-        const mappedActions: Action[] = (data || []).map((dbAction, index) => ({
-          id: -(index + (sessionType === "training" || sessionType === "game" ? 2 : 1)),
-          timestamp: timeSwitch(dbAction.time_stamp_seconds),
-          description: dbAction.description,
-          dbId: dbAction.id,
-          sketch_id: dbAction.sketch_id
-        }));
-        existingActions.push(...mappedActions);
-
-        if (existingActions.length === 0) {
-          const starterAction: Action = {
-            id: -1,
-            timestamp: "",
-            description: "",
-            dbId: uuidv4(),
-            sketch_id: uuidv4(),
-          };
-          existingActions.push(starterAction);
-        }
-        
-        setActions(existingActions);
-        setNextId(Math.abs(existingActions.length) + 1);
+      if (error) {
+        console.error('Error loading actions:', error);
+        return;
       }
+
+      const existingActions: Action[] = [];
+
+      if (sessionType === "training" || sessionType === "game") {
+        const firstAction: Action = {
+          id: -1,
+          timestamp: "",
+          description: "",
+          dbId: uuidv4(),
+          sketch_id: uuidv4(),
+          physical_score: sessionData?.physical_score || undefined,
+          mental_score: sessionData?.mental_score || undefined,
+          overall_score: sessionData?.overall_score || undefined,
+        };
+        existingActions.push(firstAction);
+      }
+
+      const mappedActions: Action[] = (data || []).map((dbAction, index) => ({
+        id: -(index + (sessionType === "training" || sessionType === "game" ? 2 : 1)),
+        timestamp: timeSwitch(dbAction.time_stamp_seconds),
+        description: dbAction.description,
+        dbId: dbAction.id,
+        sketch_id: dbAction.sketch_id
+      }));
+      existingActions.push(...mappedActions);
+
+      if (existingActions.length === 0) {
+        const starterAction: Action = {
+          id: -1,
+          timestamp: "",
+          description: "",
+          dbId: uuidv4(),
+          sketch_id: uuidv4(),
+        };
+        existingActions.push(starterAction);
+      }
+
+      setActions(existingActions);
+      setNextId(Math.abs(existingActions.length) + 1);
     } catch (error) {
       console.error('Error loading existing actions:', error);
     } finally {
@@ -452,65 +389,33 @@ export default function JournalEntryIndex() {
       });
 
       if (!response) return;
-      // Handle note type sessions differently
-      if (sessionType === "note") {
-        // For note sessions, only save id, description, and sketch_id
-        const actionData = {
-          id: action.dbId,
-          session_id: sessionId,
-          description: action.description,
-          sketch_id: action.sketch_id,
-          description_embedding: response.data[0].embedding,
-          player_mentions: parsePlayerMentions(action.description),
-          time_stamp_seconds: null, // Explicitly set to null for note actions
-          ...(sessionDate && sessionDate !== 'null' ? { session_date: sessionDate } : {})
-        };
 
-        const { data, error } = await supabase
-          .from('FieldActions')
-          .upsert([actionData], {onConflict: 'id'})
-          .select();
+      const isTypeOther = sessionType === "other";
 
-        if (error) {
-          console.error('Error submitting note action:', error);
-          Alert.alert('Error', 'Failed to submit action');
-          return;
-        }
-        
-        action.sketch_id = data[0].sketch_id;
-      } else {
-        // Handle regular sessions with timestamps
-        // Check if this is a Master session (no date)
-        //const isMasterSession = !sessionDate || sessionDate === 'null' || sessionDate === null;
-        const isTypeOther = sessionType === "other";
-        
-        
-        const actionData = {
-          id: action.dbId,
-          session_id: sessionId,
-          time_stamp_seconds: timeSwitch(action.timestamp),
-          description: action.description,
-          description_embedding: response.data[0].embedding,
-          player_mentions: parsePlayerMentions(action.description),
-          sketch_id: action.sketch_id,
-          self: !isTypeOther,
-          session_date: sessionDate,
-          //...(isMasterSession ? {} : { session_date: sessionDate })
-        };
+      const actionData = {
+        id: action.dbId,
+        session_id: sessionId,
+        time_stamp_seconds: timeSwitch(action.timestamp),
+        description: action.description,
+        description_embedding: response.data[0].embedding,
+        player_mentions: parsePlayerMentions(action.description),
+        sketch_id: action.sketch_id,
+        self: !isTypeOther,
+        session_date: sessionDate,
+      };
 
-        const { data, error } = await supabase
-          .from('FieldActions')
-          .upsert([actionData], {onConflict: 'id'})
-          .select();
+      const { data, error } = await supabase
+        .from('FieldActions')
+        .upsert([actionData], { onConflict: 'id' })
+        .select();
 
-        if (error) {
-          console.error('Error submitting action:', error);
-          Alert.alert('Error', 'Failed to submit action');
-          return;
-        }
-        
-        action.sketch_id = data[0].sketch_id;
+      if (error) {
+        console.error('Error submitting action:', error);
+        Alert.alert('Error', 'Failed to submit action');
+        return;
       }
+
+      action.sketch_id = data[0].sketch_id;
     } catch (error) {
       console.error('Error submitting action:', error);
       Alert.alert('Error', 'Failed to submit action');
@@ -737,36 +642,6 @@ export default function JournalEntryIndex() {
   }
 
   return (
-    sessionType === "note" ? 
-    <View style={styles.container}>
-        <KeyboardFormScrollView
-          ref={noteScrollViewRef}
-          style={styles.noteScrollView}
-          contentContainerStyle={styles.noteScrollContent}
-        >
-          {actions.map((action) => (
-            <ExpandingTextInput
-              key={action.id}
-              inputStyle={styles.noteStyle}
-              placeholder=""
-              value={action.description}
-              onChangeText={(value) => updateAction(action.id, 'description', value)}
-              placeholderTextColor="#999"
-              onFocus={() => {
-                updateValidTimestamps(action.id);
-              }}
-              onBlur={async () => {
-                if (typingPlayer !== null && typingPlayer !== '') {
-                  addNewPlayer(typingPlayer);
-                  setTypingPlayer(null);
-                }
-                handleSubmitAction(action);
-              }}
-            />
-          ))}
-        </KeyboardFormScrollView>
-    </View>   
-    :    
     <View style={styles.container}>
       <KeyboardFormScrollView
         ref={scrollViewRef}
@@ -862,6 +737,7 @@ export default function JournalEntryIndex() {
               )}
             </View>
             <ExpandingTextInput
+              containerStyle={styles.noteInputContainer}
               inputStyle={styles.noteInput}
               placeholder="Add a note..."
               placeholderTextColor="#999"
@@ -881,6 +757,7 @@ export default function JournalEntryIndex() {
                     </Text>
                   </TouchableOpacity>
                   <ExpandingTextInput
+                    containerStyle={styles.descriptionInputContainer}
                     inputStyle={styles.descriptionInput}
                     placeholder="Description of action..."
                     value={action.description}
@@ -940,6 +817,7 @@ export default function JournalEntryIndex() {
           <>
             {sessionType === "other" && (
               <ExpandingTextInput
+                containerStyle={styles.noteInputContainer}
                 inputStyle={styles.noteInput}
                 placeholder="Add a note..."
                 placeholderTextColor="#999"
@@ -960,6 +838,7 @@ export default function JournalEntryIndex() {
                     </Text>
                   </TouchableOpacity>
                   <ExpandingTextInput
+                    containerStyle={styles.descriptionInputContainer}
                     inputStyle={styles.descriptionInput}
                     placeholder="Description of action..."
                     value={action.description}
@@ -1103,15 +982,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     width: '100%',
     gap: 5,
-    alignItems: 'center'
+    alignItems: 'flex-start',
   },
   timestampInput: {
-    flex: 1,
+    width: 72,
+    flexShrink: 0,
     height: 40,
     borderWidth: 1,
     borderColor: '#333',
     borderRadius: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
     backgroundColor: '#1a1a1a',
     fontSize: 16,
     justifyContent: 'center',
@@ -1124,9 +1004,12 @@ const styles = StyleSheet.create({
   timestampPlaceholder: {
     color: '#999',
   },
+  descriptionInputContainer: {
+    flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
+  },
   descriptionInput: {
-    flex: 4,
-    flexDirection: "row",
     borderWidth: 1,
     borderColor: '#333',
     borderRadius: 8,
@@ -1136,6 +1019,7 @@ const styles = StyleSheet.create({
     color: '#e5e5e5',
     fontSize: 16,
     textAlignVertical: 'top',
+    minHeight: 40,
   },
   submitButton: {
     width: 40,
@@ -1262,44 +1146,19 @@ const styles = StyleSheet.create({
   keyboardAvoidingView: {
     flex: 1,
   },
-  noteScrollView: {
-    flex: 1,
-  },
-  noteScrollContent: {
-    padding: 20,
-    paddingBottom: 100,
-    alignItems: 'center',
-  },
-  noteContainer: {
-    display: "flex",
-    alignItems: "center",
-    backgroundColor: 'black',
-    height: height,
-  },
-  noteStyle: {
-    width: width*.9,
-    minHeight: 100,
-    borderWidth: 1,
-    borderColor: '#333',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginVertical: 10,
-    backgroundColor: '#1a1a1a',
-    color: '#e5e5e5',
-    fontSize: 16,
-    textAlignVertical: 'top',
+  noteInputContainer: {
+    width: '100%',
+    alignSelf: 'stretch',
+    marginBottom: 16,
   },
   noteInput: {
     width: '100%',
-    alignSelf: 'stretch',
     minHeight: 100,
     borderWidth: 1,
     borderColor: '#333',
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    marginBottom: 16,
     backgroundColor: '#1a1a1a',
     color: '#e5e5e5',
     fontSize: 16,

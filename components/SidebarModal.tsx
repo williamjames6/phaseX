@@ -66,8 +66,6 @@ export default function SidebarModal({ visible, onClose }: SidebarModalProps) {
   );
   const [loadedDayCount, setLoadedDayCount] = useState(INITIAL_DAY_COUNT);
   const [gameDates, setGameDates] = useState<Set<string>>(() => new Set());
-  const [masterSessionId, setMasterSessionId] = useState<string | null>(null);
-  const [skillSessionId, setSkillSessionId] = useState<string | null>(null);
 
   const sidebarListData = useMemo(
     () => [SIDEBAR_MASTER_KEY, SIDEBAR_SKILL_KEY, ...dateButtons],
@@ -97,9 +95,10 @@ export default function SidebarModal({ visible, onClose }: SidebarModalProps) {
       const dateInList = dateButtons.map((d) => `"${d}"`).join(',');
       const { data, error } = await supabase
         .from('FieldSessions')
-        .select('id, date, type, description')
+        .select('date, type')
         .eq('user_id', user.id)
-        .or(`and(date.is.null,type.eq.note),date.in.(${dateInList})`);
+        .eq('type', 'game')
+        .or(`date.in.(${dateInList})`);
 
       if (cancelled) {
         return;
@@ -111,24 +110,12 @@ export default function SidebarModal({ visible, onClose }: SidebarModalProps) {
       }
 
       const next = new Set<string>();
-      let masterId: string | null = null;
-      let skillId: string | null = null;
-
       for (const row of data ?? []) {
-        if (row.type === 'game' && typeof row.date === 'string') {
+        if (typeof row.date === 'string') {
           next.add(row.date);
-        }
-        if (row.date === null && row.type === 'note' && typeof row.id === 'string') {
-          if (row.description === 'MASTER') {
-            masterId = row.id;
-          } else if (row.description === 'SKILL') {
-            skillId = row.id;
-          }
         }
       }
       setGameDates(next);
-      setMasterSessionId(masterId);
-      setSkillSessionId(skillId);
     })();
 
     return () => {
@@ -164,13 +151,8 @@ export default function SidebarModal({ visible, onClose }: SidebarModalProps) {
     handleNavigation(`/daily-stack?date=${isoDate}`);
   };
 
-  const handleGlobalNotePress = (sessionId: string | null) => {
-    if (!sessionId) {
-      return;
-    }
-    handleNavigation(
-      `/daily-stack/field?sessionId=${sessionId}&sessionDate=null&sessionType=note`
-    );
+  const handleGlobalNotePress = (kind: 'MASTER' | 'SKILL') => {
+    handleNavigation(`/daily-stack/note?globalKind=${kind}`);
   };
 
   const loadMoreDays = useCallback(() => {
@@ -209,32 +191,20 @@ export default function SidebarModal({ visible, onClose }: SidebarModalProps) {
                 contentContainerStyle={styles.dayListContent}
                 renderItem={({ item }) => {
                   if (item === SIDEBAR_MASTER_KEY) {
-                    const enabled = Boolean(masterSessionId);
                     return (
                       <TouchableOpacity
-                        style={[
-                          styles.dayButton,
-                          styles.dayButtonGame,
-                          !enabled && styles.dayButtonDisabled,
-                        ]}
-                        disabled={!enabled}
-                        onPress={() => handleGlobalNotePress(masterSessionId)}
+                        style={[styles.dayButton, styles.dayButtonGame]}
+                        onPress={() => handleGlobalNotePress('MASTER')}
                       >
                         <Text style={[styles.dayButtonText, styles.dayButtonTextGame]}>*</Text>
                       </TouchableOpacity>
                     );
                   }
                   if (item === SIDEBAR_SKILL_KEY) {
-                    const enabled = Boolean(skillSessionId);
                     return (
                       <TouchableOpacity
-                        style={[
-                          styles.dayButton,
-                          styles.dayButtonGame,
-                          !enabled && styles.dayButtonDisabled,
-                        ]}
-                        disabled={!enabled}
-                        onPress={() => handleGlobalNotePress(skillSessionId)}
+                        style={[styles.dayButton, styles.dayButtonGame]}
+                        onPress={() => handleGlobalNotePress('SKILL')}
                       >
                         <Text style={[styles.dayButtonText, styles.dayButtonTextGame]}>doc</Text>
                       </TouchableOpacity>
