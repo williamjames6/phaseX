@@ -1,7 +1,8 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { Alert, Keyboard, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { useCallback, useLayoutEffect, useState } from 'react';
+import { Alert, Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { supabase } from '../../../lib/supabase';
 
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, index) => index);
@@ -44,6 +45,35 @@ interface SleepData {
 
 export default function SleepEntry() {
   const { date } = useLocalSearchParams<{ date: string }>();
+  const navigation = useNavigation();
+  const router = useRouter();
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerLeft: () => (
+        <Pressable
+          onPress={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              router.replace('/home');
+            }
+          }}
+          style={{
+            width: 36,
+            height: 36,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'transparent',
+          }}
+          hitSlop={8}
+          android_ripple={undefined}
+        >
+          <Ionicons name="chevron-back" size={28} color="#ffffff" />
+        </Pressable>
+      ),
+    });
+  }, [navigation, router]);
   const [sleepData, setSleepData] = useState<SleepData>({
     date: date || '',
     sleep_start: null,

@@ -21,7 +21,6 @@ import { supabase } from '../../lib/supabase';
 
 
 const { width } = Dimensions.get('window');
-const MAX_DOWNLOAD_INT = 10000000;
 const ASSISTANT_MESSAGE_PREFIX = 'Secretary Soccer Mom: ';
 const USER_MESSAGE_PREFIX = 'You: ';
 
@@ -497,33 +496,13 @@ export default function HomeScreen() {
   const sleepCheck = async () => {
     const currentTime = new Date();
     try {
-      // Get authenticated user's ID instead of relying on URL params
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         console.log('No authenticated user, skipping sleep check');
         return;
       }
-      
+
       const authenticatedUserId = user.id;
-      
-      const {data, error} = await supabase
-        .from("UserMetadata")
-        .upsert(
-          [
-            { user_id: authenticatedUserId }
-          ],                 
-          { onConflict: "user_id" }        
-        )
-        .select("*")
-        .single()
-      if (error) throw error;
-      
-      if (data?.previous_sign_in) {
-        if (new Date(data.previous_sign_in).getDate() == currentTime.getDate()) {
-          return;
-        };
-      };
-      
       const todayDate = dateFormatter(currentTime);
 
       // Find the user's most recent sleep row, then backfill every missing date up to today.
@@ -583,23 +562,9 @@ export default function HomeScreen() {
             .insert(rowsToInsert);
 
           if (insertSleepError) throw insertSleepError;
+          setShowSleepModal(true);
         }
       }
-        
-      //Update previous_sign_in value for currently signed in user
-      const {data: finalData, error: finalError} = await supabase
-        .from("UserMetadata")
-        .upsert(
-          [
-            {
-              user_id: authenticatedUserId,
-              previous_sign_in: currentTime
-            }
-          ],
-          { onConflict: "user_id" }
-        );
-      if (finalError) throw finalError;
-      setShowSleepModal(true);
     } catch (error) {
       console.error('Error in sleepCheck:', error);
       // Don't throw - just log the error to prevent breaking the app
@@ -677,6 +642,12 @@ export default function HomeScreen() {
     const lastDay = dateFormatter(end);
     try {
       console.log(firstDay, lastDay);
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        Alert.alert('Error', 'You must be logged in to download data');
+        return;
+      }
 
       //specific action
       const { data: actionData, error: actionError } = await supabase 
@@ -759,13 +730,43 @@ export default function HomeScreen() {
         // Safely increment date
         iterator.setDate(iterator.getDate() + 1);
       };
-      
 
+      const { data: globalSessions, error: globalSessionsError } = await supabase
+        .from('FieldSessions')
+        .select('id')
+        .eq('user_id', user.id)
+        .is('date', null);
+
+      if (globalSessionsError) {
+        console.log(globalSessionsError);
+      } else {
+        const globalSessionIds = (globalSessions ?? []).map((session) => session.id);
+        if (globalSessionIds.length > 0) {
+          const { data: globalActions, error: globalActionsError } = await supabase
+            .from('FieldActions')
+            .select('description')
+            .in('session_id', globalSessionIds);
+
+          if (globalActionsError) {
+            console.log(globalActionsError);
+          } else {
+            for (const action of globalActions ?? []) {
+              if (!action.description?.trim()) {
+                continue;
+              }
+              processedData.push({
+                date: 'global_note',
+                gym_data: [],
+                session_data: [{ description: action.description }],
+              });
+            }
+          }
+        }
+      }
 
       const csv = convertToCSV(processedData);
 
-      let random = Math.floor(Math.random() * MAX_DOWNLOAD_INT).toString();
-      const fileName = `${random}_actions.csv`; 
+      const fileName = `${Date.now()}_actions.csv`; 
       try { 
         const file = new File(Paths.cache, fileName);
         file.create(); // can throw an error if the file already exists or no permission to create it
@@ -1082,10 +1083,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a1a1a',
     borderColor: 'yellow',
     borderWidth: 1,
-    shadowColor: 'yellow',
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
+    //shadowColor: 'yellow',
+    //shadowOpacity: 0.2,
+    //shadowRadius: 4,
+    //shadowOffset: { width: 0, height: 2 },
     elevation: 2,
     alignSelf: 'flex-end',
     marginRight: 5,

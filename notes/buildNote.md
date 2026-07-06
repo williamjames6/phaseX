@@ -8,11 +8,7 @@
   --bundle-output ios/main.jsbundle \
   --assets-dest ios
  >>   
-<<<<<<< HEAD
-beep bop
-=======
-boop
->>>>>>> backendFix
+
  2. Manually drag and drop "assets" folder and "main.jsbundle" into xcode "phaseX" project
 
  3. "Build" in Xcode with desired iOS device selected ( use the .xcworkspace, not .xcodeproj [open -a Xcode ios/phaseX.xcworkspace])
@@ -36,8 +32,9 @@ FIXED- Bug with timestamp because stored as strings, ":" messes with sequential 
 FIXED- timeSwitch() on timestamp of actions before appending to chat query is returning "cannot read property 'split' of null"
 FIXED- something maybe not quite right with backend save (sometimes alert will randomly pop up saying something like "failed to save this action" on a blank action without the user pressing anything. Wondering if the React auto runs some refresh on a timer? )
 FIXED- UTC for dates of journal entries and gym entries (standardize handling of dates)
-_PARTIAL_- Cannot "undo" on a sketch if you have already left the screen. Also, undo does not work on grey paths.
+FIXED- Cannot "undo" on a sketch if you have already left the screen. Also, undo does not work on grey paths.
     -Still cannot undo if you have left screen (but fixed grey paths bug above)
+    -Changed to an erase button that simply erases pressed elements based on collision calculation
 FIXED- Add gym session button position fixed, should be part of scroll box
 FIXED- Weird flow with "Load More" button on journal stack index page. recentSessions length returning after calling setRecentSession() to a list of lenght 30. Consider timing of state updates (batched and synchronous) and rendering. Also, OBO error -- last session before the load more button gets repeated when more sessions loaded.
 FIXED- Backend not functioning properly for trainingLoad page (network error?)

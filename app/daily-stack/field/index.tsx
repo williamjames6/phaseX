@@ -1,10 +1,11 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import Constants from 'expo-constants';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useRouter } from 'expo-router';
 import { OpenAI } from 'openai';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Dimensions, Image, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Alert, Dimensions, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 import { timeSwitch } from '../../../assets/helpers/timeSwitch';
@@ -36,8 +37,16 @@ const client = new OpenAI({
   dangerouslyAllowBrowser: true // Required for Expo/React Native
 });
 
+function getGlobalNoteTitle(description: string | null | undefined): string | null {
+  if (description === 'MASTER') return 'Master';
+  if (description === 'SKILL') return 'Skill';
+  return null;
+}
+
 export default function JournalEntryIndex() {
   const { sessionId, sessionDate, sessionType } = useLocalSearchParams();
+  const navigation = useNavigation();
+  const expoRouter = useRouter();
   const [actions, setActions] = useState<Action[]>([]);
   const [nextId, setNextId] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -56,6 +65,32 @@ export default function JournalEntryIndex() {
   const [trainingLoad, setTrainingLoad] = useState<TrainingLoadMetrics | null>(null);
   let actionAdder = 0;
 
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerLeft: () => (
+        <Pressable
+          onPress={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              expoRouter.replace('/home');
+            }
+          }}
+          style={{
+            width: 36,
+            height: 36,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'transparent',
+          }}
+          hitSlop={8}
+          android_ripple={undefined}
+        >
+          <Ionicons name="chevron-back" size={28} color="#ffffff" />
+        </Pressable>
+      ),
+    });
+  }, [navigation, expoRouter]);
 
   //Pausing playerList functionality at Session level
   // const playerUpdate = async () => {
@@ -83,6 +118,10 @@ export default function JournalEntryIndex() {
       setTrainingLoad(null);
       let sessionData: { physical_score?: number | null; mental_score?: number | null; overall_score?: number | null } | null = null;
       const dateKey = Array.isArray(sessionDate) ? sessionDate[0] : sessionDate;
+
+      if (sessionType !== 'note') {
+        navigation.setOptions({ title: 'Field' });
+      }
 
       if (sessionType === "note") {
         setSessionNote('');
@@ -141,6 +180,20 @@ export default function JournalEntryIndex() {
 
       // Handle note type sessions differently
       if (sessionType === "note") {
+        const { data: noteSessionMeta, error: noteSessionMetaError } = await supabase
+          .from('FieldSessions')
+          .select('description')
+          .eq('id', sessionId)
+          .maybeSingle();
+
+        if (!noteSessionMetaError) {
+          const dateKeyIsNull = !dateKey || dateKey === 'null';
+          const globalTitle = dateKeyIsNull
+            ? getGlobalNoteTitle(noteSessionMeta?.description)
+            : null;
+          navigation.setOptions({ title: globalTitle ?? 'Field' });
+        }
+
         const { data, error } = await supabase
           .from('FieldActions')
           .select('id, description, sketch_id')
