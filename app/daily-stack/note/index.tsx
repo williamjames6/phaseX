@@ -3,7 +3,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { Alert, Dimensions, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { KeyboardFormScrollView } from '../../../components/KeyboardFormScrollView';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { ensureGlobalSessions } from '../../../lib/ensureGlobalSessions';
 import { supabase } from '../../../lib/supabase';
 
@@ -174,9 +174,13 @@ export default function NoteIndex() {
 
   return (
     <View style={styles.container}>
-      <KeyboardFormScrollView
+      <KeyboardAwareScrollView
         style={styles.noteScrollView}
         contentContainerStyle={styles.noteScrollContent}
+        bottomOffset={24}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        showsVerticalScrollIndicator
       >
         <View style={styles.noteFieldContainer}>
           <TextInput
@@ -186,16 +190,16 @@ export default function NoteIndex() {
             onChangeText={setNote}
             placeholderTextColor="#999"
             onBlur={() => saveNote(note)}
-            multiline
+            multiline={true}
             scrollEnabled={false}
-            textAlignVertical="top"
+            textAlignVertical="center"
             onTouchMove={disableEditing}
             onTouchEnd={enableEditing}
             onTouchCancel={enableEditing}
             editable={isEditable}
           />
         </View>
-      </KeyboardFormScrollView>
+      </KeyboardAwareScrollView>
     </View>
   );
 }
@@ -236,7 +240,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a1a1a',
     color: '#e5e5e5',
     fontSize: 16,
-    textAlignVertical: 'top',
+    textAlignVertical: 'center',
   },
   loadingText: {
     fontSize: 20,

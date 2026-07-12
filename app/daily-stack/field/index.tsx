@@ -5,11 +5,10 @@ import Constants from 'expo-constants';
 import { router, useLocalSearchParams, useRouter } from 'expo-router';
 import { OpenAI } from 'openai';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Alert, Dimensions, Image, Modal, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
-import { ExpandingTextInput } from '../../../components/ExpandingTextInput';
-import { KeyboardFormScrollView, KeyboardFormScrollViewRef } from '../../../components/KeyboardFormScrollView';
 import { timeSwitch } from '../../../assets/helpers/timeSwitch';
 import { supabase } from '../../../lib/supabase';
 
@@ -46,7 +45,7 @@ export default function JournalEntryIndex() {
   const [actions, setActions] = useState<Action[]>([]);
   const [nextId, setNextId] = useState(1);
   const [loading, setLoading] = useState(true);
-  const scrollViewRef = useRef<KeyboardFormScrollViewRef>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
   const [isPickerVisible, setPickerVisible] = useState(false);
   const [pickerActionId, setPickerActionId] = useState<number | null>(null);
   const [selectedMinutes, setSelectedMinutes] = useState(0);
@@ -643,10 +642,14 @@ export default function JournalEntryIndex() {
 
   return (
     <View style={styles.container}>
-      <KeyboardFormScrollView
+      <KeyboardAwareScrollView
         ref={scrollViewRef}
-        style={styles.scrollView} 
+        style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
+        bottomOffset={24}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        showsVerticalScrollIndicator
       >
         {(sessionType === "training" || sessionType === "game") && actions[0] ? (
           <>
@@ -736,14 +739,16 @@ export default function JournalEntryIndex() {
                 </View>
               )}
             </View>
-            <ExpandingTextInput
-              containerStyle={styles.noteInputContainer}
-              inputStyle={styles.noteInput}
+            <TextInput
+              style={[styles.noteInputContainer, styles.noteInput]}
               placeholder="Add a note..."
               placeholderTextColor="#999"
               value={sessionNote}
               onChangeText={setSessionNote}
               onBlur={() => saveFieldSessionNote(sessionNote)}
+              multiline={true}
+              scrollEnabled={false}
+              textAlignVertical="center"
             />
             {actions.slice(1).map((action) => (
               <View key={action.id} style={styles.actionContainer}>
@@ -756,13 +761,15 @@ export default function JournalEntryIndex() {
                       {action.timestamp || '00:00'}
                     </Text>
                   </TouchableOpacity>
-                  <ExpandingTextInput
-                    containerStyle={styles.descriptionInputContainer}
-                    inputStyle={styles.descriptionInput}
+                  <TextInput
+                    style={[styles.descriptionInputContainer, styles.descriptionInput]}
                     placeholder="Description of action..."
                     value={action.description}
                     onChangeText={(value) => updateAction(action.id, 'description', value)}
                     placeholderTextColor="#999"
+                    multiline={true}
+                    scrollEnabled={false}
+                    textAlignVertical="center"
                     onFocus={() => {
                       updateValidTimestamps(action.id);
                     }}
@@ -816,14 +823,16 @@ export default function JournalEntryIndex() {
         ) : (
           <>
             {sessionType === "other" && (
-              <ExpandingTextInput
-                containerStyle={styles.noteInputContainer}
-                inputStyle={styles.noteInput}
+              <TextInput
+                style={[styles.noteInputContainer, styles.noteInput]}
                 placeholder="Add a note..."
                 placeholderTextColor="#999"
                 value={sessionNote}
                 onChangeText={setSessionNote}
                 onBlur={() => saveFieldSessionNote(sessionNote)}
+                multiline={true}
+                scrollEnabled={false}
+                textAlignVertical="center"
               />
             )}
             {actions.map((action) => (
@@ -837,13 +846,15 @@ export default function JournalEntryIndex() {
                       {action.timestamp || '00:00'}
                     </Text>
                   </TouchableOpacity>
-                  <ExpandingTextInput
-                    containerStyle={styles.descriptionInputContainer}
-                    inputStyle={styles.descriptionInput}
+                  <TextInput
+                    style={[styles.descriptionInputContainer, styles.descriptionInput]}
                     placeholder="Description of action..."
                     value={action.description}
                     onChangeText={(value) => updateAction(action.id, 'description', value)}
                     placeholderTextColor="#999"
+                    multiline={true}
+                    scrollEnabled={false}
+                    textAlignVertical="center"
                     onFocus={() => {
                       updateValidTimestamps(action.id);
                     }}
@@ -895,7 +906,7 @@ export default function JournalEntryIndex() {
             ))}
           </>
         )}
-      </KeyboardFormScrollView>
+      </KeyboardAwareScrollView>
       
       <View style={styles.bottomButtonsContainer}>       
         <TouchableOpacity style={styles.addButton} onPress={handleAddAction}>
@@ -1018,7 +1029,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a1a1a',
     color: '#e5e5e5',
     fontSize: 16,
-    textAlignVertical: 'top',
+    textAlignVertical: 'center',
     minHeight: 40,
   },
   submitButton: {
@@ -1162,7 +1173,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a1a1a',
     color: '#e5e5e5',
     fontSize: 16,
-    textAlignVertical: 'top',
+    textAlignVertical: 'center',
   },
   modalOverlay: {
     flex: 1,

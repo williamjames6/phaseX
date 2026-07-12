@@ -1,10 +1,9 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { v4 as uuidv4 } from 'uuid';
 import { dateFormatter } from '../../../assets/helpers/dateFormatter';
-import { ExpandingTextInput } from '../../../components/ExpandingTextInput';
-import { KeyboardFormScrollView, KeyboardFormScrollViewRef } from '../../../components/KeyboardFormScrollView';
 import { supabase } from '../../../lib/supabase';
 import { Exercise, GymSessionRow } from '../../../types';
 
@@ -24,7 +23,7 @@ export default function GymSession() {
   const [exerciseSearchQuery, setExerciseSearchQuery] = useState('');
   const [note, setNote] = useState<string>('');
   const [sessionTime, setSessionTime] = useState<number | null>(null);
-  const scrollViewRef = useRef<KeyboardFormScrollViewRef>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
   const scrollGymToBottom = useCallback(() => {
     requestAnimationFrame(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
@@ -554,10 +553,14 @@ export default function GymSession() {
 
   return (
     <View style={styles.container}>
-        <KeyboardFormScrollView
+        <KeyboardAwareScrollView
           ref={scrollViewRef}
           style={styles.scrollView}
           contentContainerStyle={styles.scrollViewContent}
+          bottomOffset={24}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator
         >
           {/* Session Header */}
           {/* <View style={styles.sessionHeader}>
@@ -588,13 +591,16 @@ export default function GymSession() {
           </View>
 
           {/* Note Input */}
-          <ExpandingTextInput
-            inputStyle={styles.noteInput}
+          <TextInput
+            style={styles.noteInput}
             placeholder="Add a note..."
             placeholderTextColor="#999"
             value={note}
             onChangeText={setNote}
             onBlur={() => saveNote(note)}
+            multiline={true}
+            scrollEnabled={false}
+            textAlignVertical="center"
           />
 
           {/* Supersets */}
@@ -656,33 +662,33 @@ export default function GymSession() {
                         {exercise.sets.map((set, setIndex) => (
                           <View key={setIndex} style={styles.setColumn}>
                             <View style={styles.setInputs}>
-                            <TextInput
-                              style={styles.setInput}
-                              placeholder="Reps"
-                              placeholderTextColor="#666"
-                              value={set.reps?.toString() || ''}
-                              onChangeText={(value) => handleUpdateSet(exercise.id, parseInt(supersetNum), setIndex, 'reps', value ? parseInt(value) : null)}
-                              onBlur={() => handleSaveExercise(exercise)}
-                              keyboardType="numeric"
-                            />
-                            <TextInput
-                              style={styles.setInput}
-                              placeholder="Weight"
-                              placeholderTextColor="#666"
-                              value={set.weight?.toString() || ''}
-                              onChangeText={(value) => handleUpdateSet(exercise.id, parseInt(supersetNum), setIndex, 'weight', value ? parseFloat(value) : null)}
-                              onBlur={() => handleSaveExercise(exercise)}
-                              keyboardType="numeric"
-                            />
-                            <TextInput
-                              style={styles.setInput}
-                              placeholder="Time"
-                              placeholderTextColor="#666"
-                              value={set.time?.toString() || ''}
-                              onChangeText={(value) => handleUpdateSet(exercise.id, parseInt(supersetNum), setIndex, 'time', value ? parseFloat(value) : null)}
-                              onBlur={() => handleSaveExercise(exercise)}
-                              keyboardType="numeric"
-                            />
+                              <TextInput
+                                style={styles.setInput}
+                                placeholder="Reps"
+                                placeholderTextColor="#666"
+                                value={set.reps?.toString() || ''}
+                                onChangeText={(value) => handleUpdateSet(exercise.id, parseInt(supersetNum), setIndex, 'reps', value ? parseInt(value) : null)}
+                                onBlur={() => handleSaveExercise(exercise)}
+                                keyboardType="numeric"
+                              />
+                              <TextInput
+                                style={styles.setInput}
+                                placeholder="Weight"
+                                placeholderTextColor="#666"
+                                value={set.weight?.toString() || ''}
+                                onChangeText={(value) => handleUpdateSet(exercise.id, parseInt(supersetNum), setIndex, 'weight', value ? parseFloat(value) : null)}
+                                onBlur={() => handleSaveExercise(exercise)}
+                                keyboardType="numeric"
+                              />
+                              <TextInput
+                                style={styles.setInput}
+                                placeholder="Time"
+                                placeholderTextColor="#666"
+                                value={set.time?.toString() || ''}
+                                onChangeText={(value) => handleUpdateSet(exercise.id, parseInt(supersetNum), setIndex, 'time', value ? parseFloat(value) : null)}
+                                onBlur={() => handleSaveExercise(exercise)}
+                                keyboardType="numeric"
+                              />
                             </View>
                             {/* Remove Set Button */}
                             {exercise.sets.length > 1 && (
@@ -712,7 +718,7 @@ export default function GymSession() {
               </View>
             </View>
           ))}
-        </KeyboardFormScrollView>
+        </KeyboardAwareScrollView>
         
         {/* Add Superset Button - Pinned to bottom right */}
         <TouchableOpacity style={styles.addSupersetButton} onPress={handleAddSuperset}>
@@ -869,7 +875,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a1a1a',
     color: '#e5e5e5',
     fontSize: 16,
-    textAlignVertical: 'top',
+    textAlignVertical: 'center',
   },
   supersetContainer: {
     marginBottom: 20,
