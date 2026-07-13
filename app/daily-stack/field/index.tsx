@@ -6,9 +6,9 @@ import { router, useLocalSearchParams, useRouter } from 'expo-router';
 import { OpenAI } from 'openai';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Alert, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
+import { KeyboardFormScrollView, KeyboardFormScrollViewRef } from '../../../components/KeyboardFormScrollView';
 import { timeSwitch } from '../../../assets/helpers/timeSwitch';
 import { supabase } from '../../../lib/supabase';
 
@@ -45,7 +45,7 @@ export default function JournalEntryIndex() {
   const [actions, setActions] = useState<Action[]>([]);
   const [nextId, setNextId] = useState(1);
   const [loading, setLoading] = useState(true);
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<KeyboardFormScrollViewRef>(null);
   const [isPickerVisible, setPickerVisible] = useState(false);
   const [pickerActionId, setPickerActionId] = useState<number | null>(null);
   const [selectedMinutes, setSelectedMinutes] = useState(0);
@@ -642,14 +642,10 @@ export default function JournalEntryIndex() {
 
   return (
     <View style={styles.container}>
-      <KeyboardAwareScrollView
+      <KeyboardFormScrollView
         ref={scrollViewRef}
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
-        bottomOffset={24}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        showsVerticalScrollIndicator
       >
         {(sessionType === "training" || sessionType === "game") && actions[0] ? (
           <>
@@ -906,7 +902,7 @@ export default function JournalEntryIndex() {
             ))}
           </>
         )}
-      </KeyboardAwareScrollView>
+      </KeyboardFormScrollView>
       
       <View style={styles.bottomButtonsContainer}>       
         <TouchableOpacity style={styles.addButton} onPress={handleAddAction}>

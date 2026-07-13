@@ -60,6 +60,12 @@ target 'phaseX' do
       :ccache_enabled => ccache_enabled?(podfile_properties),
     )
 
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        config.build_settings['ENABLE_USER_SCRIPT_SANDBOXING'] = 'NO'
+      end
+    end
+
     # Xcode 26+: fmt 11.0.2 consteval is incompatible with Apple Clang 21
     installer.pods_project.targets.each do |target|
       if target.name == 'fmt'

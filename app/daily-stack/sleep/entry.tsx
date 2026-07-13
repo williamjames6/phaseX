@@ -3,6 +3,7 @@ import { Picker } from '@react-native-picker/picker';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useLayoutEffect, useState } from 'react';
 import { Alert, Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { KeyboardFormScrollView } from '../../../components/KeyboardFormScrollView';
 import { supabase } from '../../../lib/supabase';
 
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, index) => index);
@@ -248,7 +249,7 @@ export default function SleepEntry() {
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+      <KeyboardFormScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         <Text style={styles.dateText}>{date}</Text>
 
         <TextInput
@@ -339,7 +340,7 @@ export default function SleepEntry() {
             </Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
+      </KeyboardFormScrollView>
 
       {/* Time to Sleep Modal */}
       <Modal

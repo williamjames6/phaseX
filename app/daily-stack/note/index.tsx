@@ -3,7 +3,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { Alert, Dimensions, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { KeyboardFormScrollView } from '../../../components/KeyboardFormScrollView';
 import { ensureGlobalSessions } from '../../../lib/ensureGlobalSessions';
 import { supabase } from '../../../lib/supabase';
 
@@ -27,8 +27,11 @@ export default function NoteIndex() {
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(true);
   const [sessionDescription, setSessionDescription] = useState<string | null>(null);
+  // Let the user scroll *over* the note field without focusing it: a drag
+  // (onTouchMove) makes the field non-editable so the gesture scrolls the
+  // KeyboardAwareScrollView instead of placing the caret; a plain tap (no move)
+  // leaves it editable and focuses normally.
   const [isEditable, setIsEditable] = useState(true);
-
   const disableEditing = () => setIsEditable(false);
   const enableEditing = () => setIsEditable(true);
 
@@ -174,13 +177,9 @@ export default function NoteIndex() {
 
   return (
     <View style={styles.container}>
-      <KeyboardAwareScrollView
+      <KeyboardFormScrollView
         style={styles.noteScrollView}
         contentContainerStyle={styles.noteScrollContent}
-        bottomOffset={24}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        showsVerticalScrollIndicator
       >
         <View style={styles.noteFieldContainer}>
           <TextInput
@@ -192,14 +191,14 @@ export default function NoteIndex() {
             onBlur={() => saveNote(note)}
             multiline={true}
             scrollEnabled={false}
-            textAlignVertical="center"
+            textAlignVertical="top"
             onTouchMove={disableEditing}
             onTouchEnd={enableEditing}
             onTouchCancel={enableEditing}
             editable={isEditable}
           />
         </View>
-      </KeyboardAwareScrollView>
+      </KeyboardFormScrollView>
     </View>
   );
 }
@@ -240,7 +239,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a1a1a',
     color: '#e5e5e5',
     fontSize: 16,
-    textAlignVertical: 'center',
+    textAlignVertical: 'top',
   },
   loadingText: {
     fontSize: 20,

@@ -1,8 +1,8 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { Alert, Keyboard, Modal, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { v4 as uuidv4 } from 'uuid';
+import { KeyboardFormScrollView, KeyboardFormScrollViewRef } from '../../../components/KeyboardFormScrollView';
 import { dateFormatter } from '../../../assets/helpers/dateFormatter';
 import { supabase } from '../../../lib/supabase';
 import { Exercise, GymSessionRow } from '../../../types';
@@ -23,12 +23,78 @@ export default function GymSession() {
   const [exerciseSearchQuery, setExerciseSearchQuery] = useState('');
   const [note, setNote] = useState<string>('');
   const [sessionTime, setSessionTime] = useState<number | null>(null);
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<KeyboardFormScrollViewRef>(null);
   const scrollGymToBottom = useCallback(() => {
     requestAnimationFrame(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
     });
   }, []);
+
+  // Keyboard avoidance for the Reps/Weight/Time inputs. They live inside a
+  // horizontal ScrollView, so KeyboardAwareScrollView's auto-scroll skips them
+  // (the focused input's nearest scroll ancestor is the inner horizontal list,
+  // not the outer scroll view, so its gate short-circuits). We scroll them above
+  // the keyboard manually on focus instead.
+  const setInputRefs = useRef<Map<string, TextInput>>(new Map());
+  const focusedSetInputKey = useRef<string | null>(null);
+  const keyboardTopRef = useRef<number | null>(null);
+  const scrollOffsetRef = useRef(0);
+
+  const revealSetInput = useCallback((key: string) => {
+    const node = setInputRefs.current.get(key);
+    const keyboardTop = keyboardTopRef.current;
+    if (!node || keyboardTop == null) return;
+    node.measureInWindow((_x, y, _w, h) => {
+      const GAP = 24; // matches KeyboardFormScrollView bottomOffset
+      const overlap = y + h - keyboardTop + GAP;
+      if (overlap > 0) {
+        scrollViewRef.current?.scrollTo({ y: scrollOffsetRef.current + overlap, animated: true });
+      }
+    });
+  }, []);
+
+  const registerSetInput = useCallback(
+    (key: string) => (node: TextInput | null) => {
+      if (node) {
+        setInputRefs.current.set(key, node);
+      } else {
+        setInputRefs.current.delete(key);
+      }
+    },
+    []
+  );
+
+  const handleSetInputFocus = useCallback(
+    (key: string) => () => {
+      focusedSetInputKey.current = key;
+      // If the keyboard is already up (switching between set inputs), reveal now;
+      // otherwise the keyboardDidShow listener below handles the first focus.
+      if (keyboardTopRef.current != null) {
+        revealSetInput(key);
+      }
+    },
+    [revealSetInput]
+  );
+
+  const handleGymScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    scrollOffsetRef.current = e.nativeEvent.contentOffset.y;
+  }, []);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
+      keyboardTopRef.current = e.endCoordinates.screenY;
+      if (focusedSetInputKey.current) {
+        revealSetInput(focusedSetInputKey.current);
+      }
+    });
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      keyboardTopRef.current = null;
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [revealSetInput]);
 
 
 
@@ -553,14 +619,11 @@ export default function GymSession() {
 
   return (
     <View style={styles.container}>
-        <KeyboardAwareScrollView
+        <KeyboardFormScrollView
           ref={scrollViewRef}
           style={styles.scrollView}
           contentContainerStyle={styles.scrollViewContent}
-          bottomOffset={24}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          showsVerticalScrollIndicator
+          onScroll={handleGymScroll}
         >
           {/* Session Header */}
           {/* <View style={styles.sessionHeader}>
@@ -667,8 +730,10 @@ export default function GymSession() {
                                 placeholder="Reps"
                                 placeholderTextColor="#666"
                                 value={set.reps?.toString() || ''}
+                                ref={registerSetInput(`${exercise.id}:${setIndex}:reps`)}
                                 onChangeText={(value) => handleUpdateSet(exercise.id, parseInt(supersetNum), setIndex, 'reps', value ? parseInt(value) : null)}
-                                onBlur={() => handleSaveExercise(exercise)}
+                                onFocus={handleSetInputFocus(`${exercise.id}:${setIndex}:reps`)}
+                                onBlur={() => { focusedSetInputKey.current = null; handleSaveExercise(exercise); }}
                                 keyboardType="numeric"
                               />
                               <TextInput
@@ -676,8 +741,10 @@ export default function GymSession() {
                                 placeholder="Weight"
                                 placeholderTextColor="#666"
                                 value={set.weight?.toString() || ''}
+                                ref={registerSetInput(`${exercise.id}:${setIndex}:weight`)}
                                 onChangeText={(value) => handleUpdateSet(exercise.id, parseInt(supersetNum), setIndex, 'weight', value ? parseFloat(value) : null)}
-                                onBlur={() => handleSaveExercise(exercise)}
+                                onFocus={handleSetInputFocus(`${exercise.id}:${setIndex}:weight`)}
+                                onBlur={() => { focusedSetInputKey.current = null; handleSaveExercise(exercise); }}
                                 keyboardType="numeric"
                               />
                               <TextInput
@@ -685,8 +752,10 @@ export default function GymSession() {
                                 placeholder="Time"
                                 placeholderTextColor="#666"
                                 value={set.time?.toString() || ''}
+                                ref={registerSetInput(`${exercise.id}:${setIndex}:time`)}
                                 onChangeText={(value) => handleUpdateSet(exercise.id, parseInt(supersetNum), setIndex, 'time', value ? parseFloat(value) : null)}
-                                onBlur={() => handleSaveExercise(exercise)}
+                                onFocus={handleSetInputFocus(`${exercise.id}:${setIndex}:time`)}
+                                onBlur={() => { focusedSetInputKey.current = null; handleSaveExercise(exercise); }}
                                 keyboardType="numeric"
                               />
                             </View>
@@ -718,8 +787,8 @@ export default function GymSession() {
               </View>
             </View>
           ))}
-        </KeyboardAwareScrollView>
-        
+        </KeyboardFormScrollView>
+
         {/* Add Superset Button - Pinned to bottom right */}
         <TouchableOpacity style={styles.addSupersetButton} onPress={handleAddSuperset}>
             <Text style={styles.plusSign}>+</Text>

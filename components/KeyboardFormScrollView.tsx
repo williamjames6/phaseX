@@ -1,29 +1,33 @@
 import { forwardRef } from 'react';
-import { ScrollView, StyleProp, ViewStyle } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import {
+  KeyboardAwareScrollView,
+  type KeyboardAwareScrollViewProps,
+  type KeyboardAwareScrollViewRef,
+} from 'react-native-keyboard-controller';
 
-export type KeyboardFormScrollViewRef = ScrollView;
+export type KeyboardFormScrollViewRef = KeyboardAwareScrollViewRef;
 
-type KeyboardFormScrollViewProps = {
-  children: React.ReactNode;
-  style?: StyleProp<ViewStyle>;
-  contentContainerStyle?: StyleProp<ViewStyle>;
-};
-
-export const KeyboardFormScrollView = forwardRef<KeyboardFormScrollViewRef, KeyboardFormScrollViewProps>(
-  function KeyboardFormScrollView({ children, style, contentContainerStyle }, ref) {
+/**
+ * Standardized keyboard-aware scroll container used across the app.
+ * Owns the shared config so every input screen behaves identically:
+ * on focus, the caret rests ~24pt above the keyboard once it finishes animating.
+ *
+ * Defaults can be overridden per-screen (props are spread last), e.g. a custom
+ * `bottomOffset` or `contentContainerStyle`. The forwarded ref exposes both the
+ * RN ScrollView methods (`scrollTo`, `scrollToEnd`) and `assureFocusedInputVisible()`.
+ */
+export const KeyboardFormScrollView = forwardRef<KeyboardFormScrollViewRef, KeyboardAwareScrollViewProps>(
+  function KeyboardFormScrollView(props, ref) {
     return (
       <KeyboardAwareScrollView
         ref={ref}
-        style={style}
-        contentContainerStyle={contentContainerStyle}
         bottomOffset={24}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator
-      >
-        {children}
-      </KeyboardAwareScrollView>
+        mode="insets"
+        {...props}
+      />
     );
   }
 );
