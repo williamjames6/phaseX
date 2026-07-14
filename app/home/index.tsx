@@ -257,25 +257,69 @@ export default function HomeScreen() {
       }
 
       const parsePdfTextWithEdgeFunction = async (pdfBase64: string, filename: string): Promise<string> => {
-        const invokeExtractPdf = async () =>
-          supabase.functions.invoke('extract-pdf-text', {
-            body: { pdfBase64, filename },
+        // NOTE: We call the Edge Function URL directly with fetch instead of
+        // supabase.functions.invoke(). Under React Native, invoke() throws a
+        // FunctionsFetchError even though the function is deployed and healthy.
+        //
+        // The Unstructured "hi_res" job takes 30-90s. A single request that waits
+        // for it holds the socket open past RN's read timeout ("Operation timed
+        // out"). So we split into a fast 'create' (returns a jobId) plus short
+        // 'status' polls — every request now returns in well under a second.
+        const supabaseUrl = Constants.expoConfig?.extra?.supabaseUrl as string;
+        const anonKey = Constants.expoConfig?.extra?.supabaseKey as string;
+        // Prefer the user's session token; fall back to the anon key (both are valid JWTs for the gateway).
+        const authToken = session?.access_token ?? anonKey;
+        const endpoint = `${supabaseUrl}/functions/v1/extract-pdf-text`;
+
+        const callEdge = async (payload: Record<string, unknown>): Promise<any> => {
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              apikey: anonKey,
+              Authorization: `Bearer ${authToken}`,
+            },
+            body: JSON.stringify(payload),
           });
 
-        let { data, error } = await invokeExtractPdf();
+          const rawBody = await response.text();
+          let json: any = null;
+          try {
+            json = rawBody ? JSON.parse(rawBody) : null;
+          } catch {
+            // leave json null; fall through to error handling below
+          }
 
-        if (error?.message?.toLowerCase().includes('failed to send a request to the edge function')) {
-          const retryResult = await invokeExtractPdf();
-          data = retryResult.data;
-          error = retryResult.error;
+          if (!response.ok) {
+            throw new Error(`Edge function call failed: ${response.status} ${json?.error ?? rawBody}`);
+          }
+          return json;
+        };
+
+        // 1. Kick off the Unstructured job (fast).
+        const createResult = await callEdge({ action: 'create', pdfBase64, filename });
+        const jobId = createResult?.jobId as string | undefined;
+        if (!jobId) {
+          throw new Error('Edge function did not return a jobId');
         }
 
-        if (error) {
-          throw new Error(error.message || 'Edge function call failed');
+        // 2. Poll for completion with short requests.
+        const POLL_INTERVAL_MS = 3000;
+        const MAX_POLL_ATTEMPTS = 60; // ~3 minutes budget
+        for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt += 1) {
+          await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+          const statusResult = await callEdge({ action: 'status', jobId });
+
+          if (statusResult?.status === 'completed') {
+            return (statusResult?.text as string) ?? '';
+          }
+          if (statusResult?.status === 'failed') {
+            throw new Error(`Unstructured job failed: ${statusResult?.message ?? 'unknown error'}`);
+          }
+          // otherwise still processing — keep polling
         }
 
-        const payload = data as { text?: string } | null;
-        return payload?.text ?? '';
+        throw new Error('Unstructured job timed out (client polling budget exceeded)');
       };
 
       const { data: floorRow, error: floorError } = await supabase
@@ -297,7 +341,7 @@ export default function HomeScreen() {
       while (!shouldStop) {
         const params = new URLSearchParams({
           maxResults: '20',
-          q: 'label:physicalData',
+          q: 'label:internalLoad',
         });
         if (pageToken) {
           params.set('pageToken', pageToken);

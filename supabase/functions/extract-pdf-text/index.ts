@@ -121,37 +121,50 @@ async function createJob(
   return { id: job.id, input_file_ids: job.input_file_ids };
 }
 
-async function waitForJobCompletion(
+// Single, fast status check. Polling is now driven by the client so no request
+// holds the socket open long enough to hit a read timeout.
+async function checkJobStatus(
   apiBaseUrl: string,
   apiKey: string,
-  jobId: string,
-  maxAttempts = 60
-): Promise<void> {
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    const response = await fetch(`${apiBaseUrl}/api/v1/jobs/${jobId}/details`, {
-      method: 'GET',
-      headers: buildUnstructuredHeaders(apiKey),
-    });
+  jobId: string
+): Promise<{ status: string; message?: string }> {
+  const response = await fetch(`${apiBaseUrl}/api/v1/jobs/${jobId}/details`, {
+    method: 'GET',
+    headers: buildUnstructuredHeaders(apiKey),
+  });
 
-    if (!response.ok) {
-      const details = await response.text();
-      throw new Error(`Unstructured job details failed (${response.status}): ${details}`);
-    }
-
-    const details = await response.json() as { processing_status?: string; message?: string };
-    const status = details?.processing_status;
-
-    if (status === 'SUCCESS' || status === 'COMPLETED_WITH_ERRORS') {
-      return;
-    }
-    if (status === 'FAILED' || status === 'STOPPED') {
-      throw new Error(`Unstructured job ended with status ${status}: ${details?.message ?? 'no message'}`);
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(`Unstructured job details failed (${response.status}): ${details}`);
   }
 
-  throw new Error('Unstructured job timed out while waiting for completion');
+  const details = await response.json() as { processing_status?: string; message?: string };
+  return { status: details?.processing_status ?? 'UNKNOWN', message: details?.message };
+}
+
+async function collectJobOutput(
+  apiBaseUrl: string,
+  apiKey: string,
+  jobId: string
+): Promise<{ text: string; figureText: string; tableText: string; elementCount: number }> {
+  const jobInfo = await getJobInfo(apiBaseUrl, apiKey, jobId);
+  const inputFileIds = jobInfo.input_file_ids ?? [];
+  if (inputFileIds.length === 0) {
+    throw new Error('Unstructured job returned no input file ids');
+  }
+
+  const combined = { text: '', figureText: '', tableText: '', elementCount: 0 };
+
+  for (const fileId of inputFileIds) {
+    const output = await downloadJobOutput(apiBaseUrl, apiKey, jobId, fileId);
+    const extracted = extractFromUnstructuredOutput(output);
+    if (extracted.text) combined.text += (combined.text ? '\n' : '') + extracted.text;
+    if (extracted.figureText) combined.figureText += (combined.figureText ? '\n' : '') + extracted.figureText;
+    if (extracted.tableText) combined.tableText += (combined.tableText ? '\n' : '') + extracted.tableText;
+    combined.elementCount += extracted.elementCount;
+  }
+
+  return combined;
 }
 
 async function getJobInfo(
@@ -203,66 +216,67 @@ Deno.serve(async (req) => {
     });
   }
 
+  const jsonResponse = (payload: unknown, status = 200) =>
+    new Response(JSON.stringify(payload), {
+      status,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+
   try {
     const body = await req.json();
-    const pdfBase64 = body?.pdfBase64;
-    const filename = typeof body?.filename === 'string' ? body.filename : 'document.pdf';
+    // 'create' kicks off the Unstructured job and returns immediately with a jobId.
+    // 'status' checks a job and, once complete, returns the extracted text.
+    // Each request is short, so the client can poll without hitting a socket timeout.
+    const action = typeof body?.action === 'string' ? body.action : 'create';
     const unstructuredApiKey = Deno.env.get('UNSTRUCTURED_API_KEY');
     const unstructuredApiUrl = (Deno.env.get('UNSTRUCTURED_API_URL') ?? 'https://platform.unstructuredapp.io').replace(/\/$/, '');
 
-    if (!pdfBase64 || typeof pdfBase64 !== 'string') {
-      return new Response(JSON.stringify({ error: 'pdfBase64 is required and must be a string' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
     if (!unstructuredApiKey) {
-      return new Response(JSON.stringify({ error: 'UNSTRUCTURED_API_KEY is not configured' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return jsonResponse({ error: 'UNSTRUCTURED_API_KEY is not configured' }, 500);
     }
 
-    const bytes = base64ToBytes(pdfBase64);
-    const createdJob = await createJob(unstructuredApiUrl, unstructuredApiKey, bytes, filename);
-    const jobId = createdJob.id;
-    await waitForJobCompletion(unstructuredApiUrl, unstructuredApiKey, jobId);
+    if (action === 'create') {
+      const pdfBase64 = body?.pdfBase64;
+      const filename = typeof body?.filename === 'string' ? body.filename : 'document.pdf';
 
-    const jobInfo = await getJobInfo(unstructuredApiUrl, unstructuredApiKey, jobId);
-    const inputFileIds = jobInfo.input_file_ids ?? createdJob.input_file_ids ?? [];
-    if (inputFileIds.length === 0) {
-      throw new Error('Unstructured job returned no input file ids');
-    }
-
-    const combined = {
-      text: '',
-      figureText: '',
-      tableText: '',
-      elementCount: 0,
-    };
-
-    for (const fileId of inputFileIds) {
-      const output = await downloadJobOutput(unstructuredApiUrl, unstructuredApiKey, jobId, fileId);
-      const extracted = extractFromUnstructuredOutput(output);
-      if (extracted.text) combined.text += (combined.text ? '\n' : '') + extracted.text;
-      if (extracted.figureText) combined.figureText += (combined.figureText ? '\n' : '') + extracted.figureText;
-      if (extracted.tableText) combined.tableText += (combined.tableText ? '\n' : '') + extracted.tableText;
-      combined.elementCount += extracted.elementCount;
-    }
-
-    return new Response(
-      JSON.stringify({
-        text: combined.text,
-        figureText: combined.figureText,
-        tableText: combined.tableText,
-        elementCount: combined.elementCount,
-        parser: 'unstructured',
-        jobId,
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      if (!pdfBase64 || typeof pdfBase64 !== 'string') {
+        return jsonResponse({ error: 'pdfBase64 is required and must be a string' }, 400);
       }
-    );
+
+      const bytes = base64ToBytes(pdfBase64);
+      const createdJob = await createJob(unstructuredApiUrl, unstructuredApiKey, bytes, filename);
+      return jsonResponse({ jobId: createdJob.id });
+    }
+
+    if (action === 'status') {
+      const jobId = body?.jobId;
+      if (!jobId || typeof jobId !== 'string') {
+        return jsonResponse({ error: 'jobId is required and must be a string' }, 400);
+      }
+
+      const { status, message } = await checkJobStatus(unstructuredApiUrl, unstructuredApiKey, jobId);
+
+      if (status === 'SUCCESS' || status === 'COMPLETED_WITH_ERRORS') {
+        const combined = await collectJobOutput(unstructuredApiUrl, unstructuredApiKey, jobId);
+        return jsonResponse({
+          status: 'completed',
+          text: combined.text,
+          figureText: combined.figureText,
+          tableText: combined.tableText,
+          elementCount: combined.elementCount,
+          parser: 'unstructured',
+          jobId,
+        });
+      }
+
+      if (status === 'FAILED' || status === 'STOPPED') {
+        return jsonResponse({ status: 'failed', jobId, message: message ?? 'no message' });
+      }
+
+      return jsonResponse({ status: 'processing', jobId, processingStatus: status });
+    }
+
+    return jsonResponse({ error: `Unknown action: ${action}` }, 400);
   } catch (error) {
     console.error('extract-pdf-text function error:', error);
     return new Response(
