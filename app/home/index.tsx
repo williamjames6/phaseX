@@ -192,11 +192,15 @@ function parseTrainingLoadMetricsFromEmail(email: ExtractedLatestEmail): ParsedT
     return null;
   }
 
-  const trimpMatch = attachmentText.match(/TRIMP\s*\n?\s*([0-9]+(?:\.[0-9]+)?)/i);
-  const aerobicMatch = attachmentText.match(/Aerobic Training Effect\s*\n?\s*([0-9]+(?:\.[0-9]+)?)/i);
-  const anaerobicMatch = attachmentText.match(/Anaerobic Training Effect\s*\n?\s*([0-9]+(?:\.[0-9]+)?)/i);
+  // TRIMP appears as "TRIMP (66)".
+  const trimpMatch = attachmentText.match(/TRIMP\s*\(\s*([0-9]+(?:\.[0-9]+)?)\s*\)/i);
+  // Aerobic/anaerobic appear together as "Training Effect\nAerobic / Anaerobic\n2.2 / 0.9"
+  // (first value is aerobic, second is anaerobic).
+  const trainingEffectMatch = attachmentText.match(
+    /Training Effect\s*Aerobic\s*\/\s*Anaerobic\s*([0-9]+(?:\.[0-9]+)?)\s*\/\s*([0-9]+(?:\.[0-9]+)?)/i
+  );
 
-  if (!trimpMatch || !aerobicMatch || !anaerobicMatch) {
+  if (!trimpMatch || !trainingEffectMatch) {
     return null;
   }
 
@@ -204,8 +208,8 @@ function parseTrainingLoadMetricsFromEmail(email: ExtractedLatestEmail): ParsedT
     date: subjectDate,
     date_received: receivedDate.toISOString(),
     trimp: Number(trimpMatch[1]),
-    aerobic_training_effect: Number(aerobicMatch[1]),
-    anaerobic_training_effect: Number(anaerobicMatch[1]),
+    aerobic_training_effect: Number(trainingEffectMatch[1]),
+    anaerobic_training_effect: Number(trainingEffectMatch[2]),
   };
 }
 
@@ -295,10 +299,12 @@ export default function HomeScreen() {
           }
           return json;
         };
-
-        // 1. Kick off the Unstructured job (fast).
+        // 1. Kick off the Unstructured job (fast). The create response carries the
+        // input file ids, which we pass back on each status poll so the edge function
+        // can download the output (GET /jobs/{id} does not reliably return them).
         const createResult = await callEdge({ action: 'create', pdfBase64, filename });
         const jobId = createResult?.jobId as string | undefined;
+        const inputFileIds = (createResult?.inputFileIds as string[] | undefined) ?? [];
         if (!jobId) {
           throw new Error('Edge function did not return a jobId');
         }
@@ -308,7 +314,7 @@ export default function HomeScreen() {
         const MAX_POLL_ATTEMPTS = 60; // ~3 minutes budget
         for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt += 1) {
           await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-          const statusResult = await callEdge({ action: 'status', jobId });
+          const statusResult = await callEdge({ action: 'status', jobId, inputFileIds });
 
           if (statusResult?.status === 'completed') {
             return (statusResult?.text as string) ?? '';
@@ -341,7 +347,7 @@ export default function HomeScreen() {
       while (!shouldStop) {
         const params = new URLSearchParams({
           maxResults: '20',
-          q: 'label:internalLoad',
+          q: 'label:physicalData/internalLoad',
         });
         if (pageToken) {
           params.set('pageToken', pageToken);
@@ -876,7 +882,7 @@ export default function HomeScreen() {
             </ScrollView>
             <View style={styles.inputContainer}>
               <TextInput
-                placeholder="How do you want to get better today?"
+                placeholder="Do the thing"
                 value={query}
                 onChangeText={setQuery}
                 autoCapitalize="none"

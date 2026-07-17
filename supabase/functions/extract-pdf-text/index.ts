@@ -17,7 +17,7 @@ function normalizeBase64(base64OrBase64Url: string): string {
 function base64ToBytes(base64OrBase64Url: string): Uint8Array {
   const normalized = normalizeBase64(base64OrBase64Url);
   const binary = atob(normalized);
-  const bytes = new Uint8Array(binary.length);
+  const bytes = new Uint8Array(binary.length);``
   for (let i = 0; i < binary.length; i += 1) {
     bytes[i] = binary.charCodeAt(i);
   }
@@ -145,10 +145,15 @@ async function checkJobStatus(
 async function collectJobOutput(
   apiBaseUrl: string,
   apiKey: string,
-  jobId: string
+  jobId: string,
+  fallbackInputFileIds: string[] = []
 ): Promise<{ text: string; figureText: string; tableText: string; elementCount: number }> {
+  // GET /api/v1/jobs/{id} does not reliably include input_file_ids, so fall back to
+  // the ids captured at create time (passed through from the client's 'create' call).
   const jobInfo = await getJobInfo(apiBaseUrl, apiKey, jobId);
-  const inputFileIds = jobInfo.input_file_ids ?? [];
+  const inputFileIds = (jobInfo.input_file_ids && jobInfo.input_file_ids.length > 0)
+    ? jobInfo.input_file_ids
+    : fallbackInputFileIds;
   if (inputFileIds.length === 0) {
     throw new Error('Unstructured job returned no input file ids');
   }
@@ -245,7 +250,7 @@ Deno.serve(async (req) => {
 
       const bytes = base64ToBytes(pdfBase64);
       const createdJob = await createJob(unstructuredApiUrl, unstructuredApiKey, bytes, filename);
-      return jsonResponse({ jobId: createdJob.id });
+      return jsonResponse({ jobId: createdJob.id, inputFileIds: createdJob.input_file_ids ?? [] });
     }
 
     if (action === 'status') {
@@ -254,10 +259,11 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: 'jobId is required and must be a string' }, 400);
       }
 
+      const inputFileIds = Array.isArray(body?.inputFileIds) ? body.inputFileIds : [];
       const { status, message } = await checkJobStatus(unstructuredApiUrl, unstructuredApiKey, jobId);
 
       if (status === 'SUCCESS' || status === 'COMPLETED_WITH_ERRORS') {
-        const combined = await collectJobOutput(unstructuredApiUrl, unstructuredApiKey, jobId);
+        const combined = await collectJobOutput(unstructuredApiUrl, unstructuredApiKey, jobId, inputFileIds);
         return jsonResponse({
           status: 'completed',
           text: combined.text,
